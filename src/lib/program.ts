@@ -19,6 +19,13 @@ const prescription = (
   repRange: [number, number],
   targetRir: [number, number] = [2, 3],
   variant = "standard",
+  extras: {
+    restSeconds?: number;
+    hint?: string;
+    targetLoadKg?: number;
+    tempo?: string;
+    rangeOfMotion?: string;
+  } = {},
 ): ExercisePrescription => ({
   id,
   exerciseId,
@@ -26,9 +33,12 @@ const prescription = (
   repRange,
   targetRir,
   variant,
-  tempo: "2-0-1",
-  rangeOfMotion: "completo e confortevole",
+  tempo: extras.tempo ?? "2-0-1",
+  rangeOfMotion: extras.rangeOfMotion ?? "completo e confortevole",
   difficultyLevel: 0,
+  restSeconds: extras.restSeconds ?? 90,
+  hint: extras.hint,
+  targetLoadKg: extras.targetLoadKg,
 });
 
 export const EXERCISES: ExerciseDefinition[] = [
@@ -60,41 +70,114 @@ export const TEMPLATES: WorkoutTemplate[] = [
   {
     id: "strength-a", dayOfWeek: 1, name: "Forza A", kind: "strength", estimatedMinutes: 48,
     prescriptions: [
-      prescription("a1", "bulgarian-split-squat", 3, [8, 12]),
-      prescription("a2", "floor-press", 3, [8, 15]),
-      prescription("a3", "supported-row", 3, [10, 15]),
-      prescription("a4", "rdl", 3, [8, 15]),
-      prescription("a5", "calf-raise", 3, [15, 25]),
-      prescription("a6", "dead-bug", 3, [8, 12]),
+      prescription("a1", "bulgarian-split-squat", 3, [8, 12], [2, 3], "standard", {
+        restSeconds: 120,
+        targetLoadKg: 16,
+        hint: "Ginocchio punta nella direzione del piede. Tronco alto, spinta dal tallone anteriore.",
+      }),
+      prescription("a2", "floor-press", 3, [8, 15], [2, 3], "presa neutra", {
+        restSeconds: 90,
+        targetLoadKg: 16,
+        hint: "Gomiti a ~45°. Non cercare il cedimento; interrompi se sintomi al braccio.",
+      }),
+      prescription("a3", "supported-row", 3, [10, 15], [2, 3], "standard", {
+        restSeconds: 90,
+        targetLoadKg: 16,
+        hint: "Petto sul supporto, scapola che si ritrae senza shruggare la spalla.",
+      }),
+      prescription("a4", "rdl", 3, [8, 15], [2, 3], "standard", {
+        restSeconds: 120,
+        targetLoadKg: 16,
+        hint: "Anca indietro, schiena neutra. Sentire lo stiramento sui femorali senza arrotondare.",
+      }),
+      prescription("a5", "calf-raise", 3, [15, 25], [2, 3], "standard", {
+        restSeconds: 60,
+        targetLoadKg: 16,
+        hint: "Pausa in alto 1 s. Discesa completa e controllata.",
+      }),
+      prescription("a6", "dead-bug", 3, [8, 12], [2, 3], "standard", {
+        restSeconds: 45,
+        hint: "Lombare sempre a contatto col pavimento. Espira durante l’estensione.",
+      }),
     ],
   },
-  { id: "easy-run", dayOfWeek: 2, name: "Corsa facile", kind: "run", estimatedMinutes: 42, prescriptions: [], notes: ["35–50 min", "RPE 3–4", "Talk test: frasi complete"] },
+  { id: "easy-run", dayOfWeek: 2, name: "Corsa facile", kind: "run", estimatedMinutes: 42, prescriptions: [], notes: ["35–50 min", "RPE 3–4", "Talk test: frasi complete", "Riferimento: Corsa facile (zona 2)"] },
   {
     id: "strength-b", dayOfWeek: 3, name: "Forza B", kind: "strength", estimatedMinutes: 52,
     prescriptions: [
-      prescription("b1", "reverse-lunge", 3, [10, 15]),
-      prescription("b2", "hip-thrust", 4, [10, 20]),
-      prescription("b3", "handle-push-up", 3, [6, 20]),
-      prescription("b4", "supported-row", 4, [8, 12]),
-      prescription("b5", "prone-w", 2, [8, 12]),
-      { ...prescription("b6", "side-plank", 3, [20, 45]), repRange: undefined, secondsRange: [20, 45] },
+      prescription("b1", "reverse-lunge", 3, [10, 15], [2, 3], "standard", {
+        restSeconds: 90,
+        targetLoadKg: 16,
+        hint: "Passo indietro controllato. Ginocchio anteriore stabile sopra il piede.",
+      }),
+      prescription("b2", "hip-thrust", 4, [10, 20], [2, 3], "standard", {
+        restSeconds: 90,
+        targetLoadKg: 16,
+        hint: "Mentone teso, costole basse. Stringi i glutei in alto 1 s.",
+      }),
+      prescription("b3", "handle-push-up", 3, [6, 20], [2, 3], "standard", {
+        restSeconds: 90,
+        hint: "Scapole stabili. Se serve, riduci ROM o alza le mani.",
+      }),
+      prescription("b4", "supported-row", 4, [8, 12], [2, 3], "standard", {
+        restSeconds: 90,
+        targetLoadKg: 16,
+        hint: "Tirata verso l’anca, non verso la spalla.",
+      }),
+      prescription("b5", "prone-w", 2, [8, 12], [2, 3], "senza peso", {
+        restSeconds: 45,
+        hint: "Gomiti a 90°, solo controllo scapolare. Nessuna tensione cervicale.",
+      }),
+      {
+        ...prescription("b6", "side-plank", 3, [20, 45], [2, 3], "standard", {
+          restSeconds: 45,
+          hint: "Spalle impilate, bacino alto. Dalle ginocchia se serve regressione.",
+        }),
+        repRange: undefined,
+        secondsRange: [20, 45],
+      },
     ],
   },
   { id: "recovery", dayOfWeek: 4, name: "Recupero facoltativo", kind: "recovery", estimatedMinutes: 0, prescriptions: [], notes: ["Riposo, passeggiata libera o mobilità non provocativa. Nessun obbligo."] },
   {
     id: "strength-c", dayOfWeek: 5, name: "Forza C", kind: "strength", estimatedMinutes: 44,
     prescriptions: [
-      prescription("c1", "floor-press", 3, [10, 20]),
-      prescription("c2", "supported-row", 3, [12, 20]),
-      prescription("c3", "bulgarian-split-squat", 2, [12, 15], [3, 3], "carico moderato"),
-      prescription("c4", "rdl", 2, [10, 12], [3, 3], "B-stance moderato"),
-      prescription("c5", "single-leg-glute-bridge", 2, [12, 20]),
-      prescription("c6", "calf-raise", 2, [15, 25], [3, 3], "una gamba"),
-      prescription("c7", "bird-dog", 3, [6, 10]),
+      prescription("c1", "floor-press", 3, [10, 20], [2, 3], "presa neutra", {
+        restSeconds: 90,
+        targetLoadKg: 16,
+        hint: "Volume upper body: RIR 2–3, tecnica prima del carico.",
+      }),
+      prescription("c2", "supported-row", 3, [12, 20], [2, 3], "standard", {
+        restSeconds: 75,
+        targetLoadKg: 16,
+        hint: "Serie più densita: mantieni qualità senza rincorrere la fatica.",
+      }),
+      prescription("c3", "bulgarian-split-squat", 2, [12, 15], [3, 3], "carico moderato", {
+        restSeconds: 90,
+        targetLoadKg: 16,
+        hint: "RIR 3 fisso: proteggere le gambe per la corsa di sabato.",
+      }),
+      prescription("c4", "rdl", 2, [10, 12], [3, 3], "B-stance moderato", {
+        restSeconds: 90,
+        targetLoadKg: 16,
+        hint: "Stance B: piede posteriore leggero, carico sul piede anteriore.",
+      }),
+      prescription("c5", "single-leg-glute-bridge", 2, [12, 20], [2, 3], "standard", {
+        restSeconds: 60,
+        hint: "Bacino livellato. Evita iperestensione lombare.",
+      }),
+      prescription("c6", "calf-raise", 2, [15, 25], [3, 3], "una gamba", {
+        restSeconds: 45,
+        hint: "Una gamba: supporto leggero se serve equilibrio.",
+      }),
+      prescription("c7", "bird-dog", 3, [6, 10], [2, 3], "standard", {
+        restSeconds: 45,
+        hint: "Muovi arto opposto senza ruotare il bacino.",
+      }),
     ],
     notes: ["Lower body sempre a RIR 3 per proteggere la corsa del sabato."],
   },
-  { id: "main-run", dayOfWeek: 6, name: "Corsa principale", kind: "run", estimatedMinutes: 55, prescriptions: [], notes: ["Alterna lungo facile e qualità controllata", "Settimane 1–2 sempre facili"] },
+  { id: "main-run", dayOfWeek: 6, name: "Corsa principale", kind: "run", estimatedMinutes: 55, prescriptions: [], notes: ["Alterna lungo facile e qualità controllata", "Settimane 1–2 sempre facili", "Riferimenti libreria: Corsa lunga facile / Qualità controllata"] },
   { id: "sunday-free", dayOfWeek: 0, name: "Domenica libera", kind: "free", estimatedMinutes: 0, prescriptions: [] },
 ];
 

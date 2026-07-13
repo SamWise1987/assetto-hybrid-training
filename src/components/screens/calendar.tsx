@@ -1,13 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { CalendarCheck, Check, Footprints, Info, MoveRight } from "lucide-react";
-import { z } from "zod";
+import {
+  addMonths,
+  eachDayOfInterval,
+  endOfMonth,
+  endOfWeek,
+  format,
+  isSameDay,
+  isSameMonth,
+  isToday,
+  startOfMonth,
+  startOfWeek,
+  subMonths,
+} from "date-fns";
+import { it } from "date-fns/locale";
+import { Bell, CalendarCheck, Check, ChevronLeft, ChevronRight, Footprints, Info } from "lucide-react";
 import { completeRunSession, db, ensureRunPlansForCurrentWeek, getActiveBlockWeek, getResolvedTemplates } from "@/lib/db";
-import type { RunSession } from "@/lib/types";
+import type { RunSession, WorkoutTemplate } from "@/lib/types";
+import { z } from "zod";
 import { Button, Field, ScaleControl, Surface } from "../ui";
 
+const DAYS_SHORT = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 const DAYS = ["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"];
 const runSchema = z.object({
   duration: z.coerce.number().min(5).max(240),
@@ -15,57 +30,204 @@ const runSchema = z.object({
   rpe: z.coerce.number().int().min(1).max(10),
 });
 
+function toIsoDate(date: Date) {
+  return format(date, "yyyy-MM-dd");
+}
+
+function templateForDate(date: Date, templates: WorkoutTemplate[]) {
+  return templates.find((template) => template.dayOfWeek === date.getDay());
+}
+
+function isWorkoutDay(template?: WorkoutTemplate) {
+  return Boolean(template && template.kind !== "free");
+}
+
 export function CalendarScreen() {
   const runs = useLiveQuery(() => db.runs.orderBy("date").reverse().toArray()) ?? [];
+  const sessions = useLiveQuery(() => db.workoutSessions.toArray(), [], []) ?? [];
   const runPlans = useLiveQuery(() => ensureRunPlansForCurrentWeek(), []) ?? [];
   const calibrations = useLiveQuery(() => db.runCalibrationDecisions.orderBy("date").reverse().toArray()) ?? [];
   const blockWeek = useLiveQuery(() => getActiveBlockWeek(), [], 4);
   const resolvedTemplates = useLiveQuery(() => getResolvedTemplates(), [], []) ?? [];
+  const [cursor, setCursor] = useState(() => startOfMonth(new Date()));
+  const [selected, setSelected] = useState(() => new Date());
+  const [view, setView] = useState<"month" | "week">("month");
   const [showRun, setShowRun] = useState(false);
-  const [moveMessage, setMoveMessage] = useState("");
-  const ordered = [1, 2, 3, 4, 5, 6, 0]
-    .map((day) => resolvedTemplates.find((template) => template.dayOfWeek === day))
-    .filter((template): template is NonNullable<typeof template> => Boolean(template));
+
+  const monthDays = useMemo(() => {
+    const start = startOfWeek(startOfMonth(cursor), { weekStartsOn: 1 });
+    const end = endOfWeek(endOfMonth(cursor), { weekStartsOn: 1 });
+    return eachDayOfInterval({ start, end });
+  }, [cursor]);
+
+  const weekDays = useMemo(() => {
+    const start = startOfWeek(selected, { weekStartsOn: 1 });
+    const end = endOfWeek(selected, { weekStartsOn: 1 });
+    return eachDayOfInterval({ start, end });
+  }, [selected]);
+
+  const gridDays = view === "month" ? monthDays : weekDays;
+  const selectedTemplate = templateForDate(selected, resolvedTemplates);
+  const selectedIso = toIsoDate(selected);
+  const selectedRunPlan = runPlans.find((entry) => entry.date === selectedIso || entry.dayOfWeek === selected.getDay());
+  const selectedSession = sessions.find((entry) => entry.date === selectedIso);
+  const selectedRun = runs.find((entry) => entry.date === selectedIso);
+
+  const reminders = useMemo(() => {
+    const start = startOfWeek(new Date(), { weekStartsOn: 1 });
+    const end = endOfWeek(addMonths(start, 0), { weekStartsOn: 1 });
+    return eachDayOfInterval({ start, end })
+      .map((day) => {
+        const template = templateForDate(day, resolvedTemplates);
+        if (!isWorkoutDay(template) || template?.kind === "recovery") return null;
+        return {
+          date: day,
+          template: template!,
+          reminder: template!.kind === "run"
+            ? `Reminder: ${template!.name} · prepara scarpe e talk test`
+            : `Reminder: ${template!.name} · check-in e scheda pronti`,
+        };
+      })
+      .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+  }, [resolvedTemplates]);
 
   return (
     <div className="screen-stack">
       <header className="section-heading">
         <p className="date-label">Settimana {blockWeek} di 8</p>
         <h1>Calendario</h1>
-        <p>La domenica resta fuori dal sistema: nessun recupero automatico.</p>
+        <p>Giorni, settimane e mesi con i tuoi allenamenti e i reminder delle sedute.</p>
       </header>
-      <div className="week-list">
-        {ordered.map((template) => {
-          const plan = runPlans.find((entry) => entry.dayOfWeek === template.dayOfWeek);
+
+      <div className="calendar-toolbar">
+        <div className="calendar-view-toggle" role="tablist" aria-label="Vista calendario">
+          <button type="button" className={view === "month" ? "is-active" : ""} onClick={() => setView("month")}>Mese</button>
+          <button type="button" className={view === "week" ? "is-active" : ""} onClick={() => setView("week")}>Settimana</button>
+        </div>
+        <div className="calendar-nav">
+          <button
+            type="button"
+            aria-label="Periodo precedente"
+            onClick={() => {
+              if (view === "month") setCursor((value) => subMonths(value, 1));
+              else setSelected((value) => new Date(value.getFullYear(), value.getMonth(), value.getDate() - 7));
+            }}
+          >
+            <ChevronLeft />
+          </button>
+          <strong>
+            {view === "month"
+              ? format(cursor, "MMMM yyyy", { locale: it })
+              : `${format(weekDays[0], "d MMM", { locale: it })} – ${format(weekDays[6], "d MMM yyyy", { locale: it })}`}
+          </strong>
+          <button
+            type="button"
+            aria-label="Periodo successivo"
+            onClick={() => {
+              if (view === "month") setCursor((value) => addMonths(value, 1));
+              else setSelected((value) => new Date(value.getFullYear(), value.getMonth(), value.getDate() + 7));
+            }}
+          >
+            <ChevronRight />
+          </button>
+        </div>
+      </div>
+
+      <div className="calendar-grid" role="grid" aria-label={view === "month" ? "Calendario mensile" : "Calendario settimanale"}>
+        {DAYS_SHORT.map((label) => (
+          <div key={label} className="calendar-weekday" role="columnheader">{label}</div>
+        ))}
+        {gridDays.map((day) => {
+          const template = templateForDate(day, resolvedTemplates);
+          const workout = isWorkoutDay(template);
+          const iso = toIsoDate(day);
+          const done = sessions.some((entry) => entry.date === iso && entry.status === "complete")
+            || runs.some((entry) => entry.date === iso && entry.status === "complete");
           return (
-            <article key={template.id} className={template.kind === "free" ? "is-free" : ""}>
-              <div>
-                <span>{DAYS[template.dayOfWeek]}</span>
-                <h2>{template.name}</h2>
-                <p>
-                  {plan
-                    ? `${plan.durationMinutes} min · ${plan.status === "calibrated" ? "calibrato" : "previsto"}`
-                    : template.estimatedMinutes
-                      ? `circa ${template.estimatedMinutes} min`
-                      : template.notes?.[0]}
-                </p>
-              </div>
-              {template.kind !== "free" && template.kind !== "recovery" ? (
-                <button
-                  type="button"
-                  onClick={() => setMoveMessage("Puoi spostare la seduta tra lunedì e sabato. La qualità non verrà messa dopo un lower body pesante.")}
-                  aria-label={`Sposta ${template.name}`}
-                >
-                  <MoveRight />
-                </button>
-              ) : (
-                <span className="day-status">{template.kind === "free" ? "Libera" : "Facoltativo"}</span>
-              )}
-            </article>
+            <button
+              key={iso}
+              type="button"
+              role="gridcell"
+              className={[
+                "calendar-day",
+                !isSameMonth(day, cursor) && view === "month" ? "is-outside" : "",
+                isToday(day) ? "is-today" : "",
+                isSameDay(day, selected) ? "is-selected" : "",
+                workout ? "has-workout" : "",
+                template?.kind === "run" ? "is-run" : "",
+                template?.kind === "recovery" ? "is-recovery" : "",
+                done ? "is-done" : "",
+              ].filter(Boolean).join(" ")}
+              onClick={() => {
+                setSelected(day);
+                if (view === "month") setCursor(startOfMonth(day));
+              }}
+              aria-label={`${format(day, "EEEE d MMMM", { locale: it })}${template ? `, ${template.name}` : ""}`}
+              aria-current={isSameDay(day, selected) ? "date" : undefined}
+            >
+              <span className="calendar-day-number">{format(day, "d")}</span>
+              {workout ? <span className="calendar-day-dot" aria-hidden="true" /> : null}
+              {workout && template ? <span className="calendar-day-label">{template.name}</span> : null}
+              {workout && template?.kind !== "recovery" ? <Bell className="calendar-day-bell" aria-hidden="true" /> : null}
+            </button>
           );
         })}
       </div>
-      {moveMessage ? <p className="info-message"><Info /> {moveMessage}</p> : null}
+
+      <Surface className="calendar-day-detail">
+        <div className="surface-heading">
+          <div>
+            <p className="date-label">{format(selected, "EEEE d MMMM", { locale: it })}</p>
+            <h2>{selectedTemplate?.name ?? "Nessuna seduta"}</h2>
+          </div>
+          {selectedTemplate && selectedTemplate.kind !== "free" && selectedTemplate.kind !== "recovery" ? (
+            <span className="reminder-pill"><Bell size={14} /> Reminder attivo</span>
+          ) : null}
+        </div>
+        {selectedTemplate?.kind === "free" ? (
+          <p>Domenica libera: nessun recupero automatico e nessun reminder.</p>
+        ) : null}
+        {selectedTemplate?.kind === "recovery" ? (
+          <p>{selectedTemplate.notes?.[0] ?? "Recupero facoltativo."}</p>
+        ) : null}
+        {selectedTemplate?.kind === "strength" ? (
+          <div className="calendar-detail-meta">
+            <p>Circa {selectedTemplate.estimatedMinutes} min · {selectedTemplate.prescriptions.length} esercizi in scheda</p>
+            {selectedSession ? <p className="success-message">Seduta già registrata ({selectedSession.status}).</p> : <p>Reminder: completa check-in e registra carichi, pause e hint della scheda.</p>}
+          </div>
+        ) : null}
+        {selectedTemplate?.kind === "run" ? (
+          <div className="calendar-detail-meta">
+            <p>
+              {selectedRunPlan
+                ? `${selectedRunPlan.durationMinutes} min · ${selectedRunPlan.status === "calibrated" ? "calibrato" : "previsto"}`
+                : `circa ${selectedTemplate.estimatedMinutes} min`}
+            </p>
+            {selectedTemplate.notes?.map((note) => <p key={note}>{note}</p>)}
+            {selectedRun ? <p className="success-message">Corsa registrata · RPE {selectedRun.rpe}</p> : <p>Reminder: talk test e sintomi da segnare a fine uscita.</p>}
+          </div>
+        ) : null}
+      </Surface>
+
+      <Surface>
+        <div className="surface-heading">
+          <div><p className="date-label">Questa settimana</p><h2>Reminder allenamenti</h2></div>
+          <Bell />
+        </div>
+        <div className="reminder-list">
+          {reminders.map((entry) => (
+            <article key={toIsoDate(entry.date)}>
+              <div>
+                <strong>{DAYS[entry.date.getDay()]}</strong>
+                <span>{format(entry.date, "d MMM", { locale: it })}</span>
+              </div>
+              <p>{entry.reminder}</p>
+            </article>
+          ))}
+          {!reminders.length ? <p className="quiet-note">Nessun reminder in programma questa settimana.</p> : null}
+        </div>
+      </Surface>
+
       {calibrations[0] ? (
         <Surface>
           <p className="date-label">Calibrazione corsa</p>
@@ -73,8 +235,10 @@ export function CalendarScreen() {
           <p>Sabato: {calibrations[0].outputPlan.durationMinutes} min · {calibrations[0].outputPlan.type}</p>
         </Surface>
       ) : null}
+
       <Button onClick={() => setShowRun(!showRun)}><Footprints /> {showRun ? "Chiudi registrazione" : "Registra una corsa"}</Button>
       {showRun ? <RunForm onSaved={() => setShowRun(false)} /> : null}
+
       <Surface>
         <div className="surface-heading">
           <div><p className="date-label">Storico corsa</p><h2>Ultime uscite</h2></div>
@@ -93,6 +257,8 @@ export function CalendarScreen() {
           ))}
         </div>
       </Surface>
+
+      <p className="info-message"><Info /> Puoi spostare le sedute tra lunedì e sabato: evita qualità di corsa dopo un lower body pesante.</p>
     </div>
   );
 }
