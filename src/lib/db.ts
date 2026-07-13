@@ -33,6 +33,8 @@ import {
   seedRunPlansForWeek,
   toActivePrescriptions,
 } from "./training-engine";
+import { undoRunCalibrationDecision } from "./run-calibration";
+import type { TrainingPlanRunSession } from "./types";
 import { getDay, subWeeks } from "date-fns";
 import { BLOCK, DEMO_SEED, EQUIPMENT, EXERCISES, PROFILE, TEMPLATES } from "./program";
 
@@ -351,4 +353,56 @@ export async function getTodayRunPlan(date = new Date()) {
   await ensureRunPlansForCurrentWeek();
   const iso = date.toISOString().slice(0, 10);
   return db.runPlans.where("date").equals(iso).first();
+}
+
+export async function applyCoachRunPlans(runSessions: TrainingPlanRunSession[]) {
+  const plans = await ensureRunPlansForCurrentWeek();
+  const updates: RunPlan[] = plans.map((plan) => {
+    const override = runSessions.find((session) => session.dayOfWeek === plan.dayOfWeek);
+    if (!override) return plan;
+    return {
+      ...plan,
+      type: override.type,
+      durationMinutes: override.durationMinutes,
+      notes: override.notes ?? plan.notes,
+      status: plan.status === "completed" ? "completed" : "planned",
+    };
+  });
+  await db.runPlans.bulkPut(updates);
+  return updates;
+}
+
+export async function undoRunCalibration(decisionId: string) {
+  const decision = await db.runCalibrationDecisions.get(decisionId);
+  if (!decision || decision.undoneAt) return null;
+
+  const saturdayPlan = await db.runPlans.where("date").equals(decision.targetDate).first();
+  if (!saturdayPlan) return null;
+
+  const { decision: undoneDecision, restoredPlan } = undoRunCalibrationDecision(decision);
+
+  await db.transaction("rw", [db.runPlans, db.runCalibrationDecisions], async () => {
+    await db.runCalibrationDecisions.put(undoneDecision);
+    await db.runPlans.put({
+      ...saturdayPlan,
+      type: restoredPlan.type,
+      durationMinutes: restoredPlan.durationMinutes,
+      status: "planned",
+      notes: ["Calibrazione annullata: ripristinato il piano originale."],
+    });
+  });
+
+  return undoneDecision;
+}
+
+export async function importExternalRun(run: RunSession) {
+  if (run.externalId) {
+    const existing = await db.runs
+      .filter((entry) => entry.externalId === run.externalId)
+      .first();
+    if (existing) return { run: existing, imported: false, calibration: null };
+  }
+
+  const calibration = await completeRunSession(run);
+  return { run, imported: true, calibration };
 }

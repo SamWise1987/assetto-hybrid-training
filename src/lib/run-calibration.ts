@@ -174,3 +174,13 @@ export function weekDates(reference = new Date()) {
 export function sumRunMinutes(runs: readonly Pick<RunSession, "durationMinutes">[]) {
   return runs.reduce((total, run) => total + run.durationMinutes, 0);
 }
+
+export function undoRunCalibrationDecision(
+  decision: RunCalibrationDecision,
+  undoneAt = new Date().toISOString(),
+) {
+  return {
+    decision: { ...decision, undoneAt },
+    restoredPlan: decision.previousPlan,
+  };
+}

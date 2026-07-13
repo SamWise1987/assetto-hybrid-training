@@ -69,6 +69,10 @@ export async function syncAccountProfile() {
     role: body.profile.role,
     updatedAt: new Date().toISOString(),
   });
+
+  const { syncAssignedPlanFromCloud } = await import("./plan-sync");
+  await syncAssignedPlanFromCloud().catch(() => undefined);
+
   return body.profile;
 }
 

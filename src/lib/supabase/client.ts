@@ -139,6 +139,32 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["plan_assignments"]["Insert"]>;
         Relationships: [];
       };
+      service_connections: {
+        Row: {
+          id: string;
+          user_id: string;
+          provider: string;
+          external_athlete_id: string | null;
+          access_token: string;
+          refresh_token: string;
+          expires_at: string;
+          scopes: string[];
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          provider: string;
+          external_athlete_id?: string | null;
+          access_token: string;
+          refresh_token: string;
+          expires_at: string;
+          scopes?: string[];
+        };
+        Update: Partial<Database["public"]["Tables"]["service_connections"]["Insert"]>;
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;

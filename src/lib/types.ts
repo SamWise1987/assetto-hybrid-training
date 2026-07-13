@@ -30,9 +30,17 @@ export interface TrainingPlan {
   name: string;
   description?: string;
   sessions: TrainingPlanSession[];
+  runSessions?: TrainingPlanRunSession[];
   createdBy: Id;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface TrainingPlanRunSession {
+  dayOfWeek: number;
+  type: RunSession["type"];
+  durationMinutes: number;
+  notes?: string[];
 }
 
 export interface TrainingPlanSession {
@@ -42,6 +50,23 @@ export interface TrainingPlanSession {
   kind: SessionKind;
   estimatedMinutes: number;
   notes?: string[];
+  prescriptions?: ExercisePrescription[];
+  runConfig?: {
+    type: RunSession["type"];
+    durationMinutes: number;
+    notes?: string[];
+  };
+}
+
+export type RunSessionSource = "manual" | "strava" | "gpx" | "apple_health" | "health_connect";
+
+export interface ConnectedService {
+  id: Id;
+  provider: "strava" | "garmin" | "apple_health" | "health_connect";
+  athleteId?: string;
+  connectedAt: string;
+  lastSyncAt?: string;
+  scopes?: string[];
 }
 
 export interface PlanAssignment {
@@ -191,6 +216,9 @@ export interface RunSession {
   symptomsDuring: number;
   symptomsNextDay?: number;
   conversionReason?: string;
+  source?: RunSessionSource;
+  externalId?: string;
+  elevationGainM?: number;
 }
 
 export interface NextDayResponse {
@@ -263,6 +291,8 @@ export interface AppSettings {
   aiCoachEnabled: boolean;
   aiModel: string;
   lastCoachReviewAt?: string;
+  stravaConnected?: boolean;
+  lastStravaSyncAt?: string;
 }
 
 export interface CoachReview {
