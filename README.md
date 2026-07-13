@@ -156,3 +156,4 @@ La build di produzione registra `public/sw.js`, mette in cache shell, manifest e
 - modalità offline dopo un primo caricamento in produzione.
 
 Le regole sono documentate in [AUTOREGULATION.md](./AUTOREGULATION.md); i limiti clinici in [SAFETY.md](./SAFETY.md).
+Per iOS/Android nativo (HealthKit / Health Connect, senza Strava): [CAPACITOR.md](./CAPACITOR.md).

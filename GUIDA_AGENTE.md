@@ -249,17 +249,17 @@ e2e/essential-flows.spec.ts    Test Playwright mobile 390×844
 ## Migliorie suggerite (backlog per agente)
 
 ### Priorità alta
-1. **Fix stabilità dev** — verificare con Node 22 che lint/E2E passino
-2. **UI promozione coach** — form in Impostazioni admin invece di curl
-3. **Pull piano assegnato** — all'accesso atleta, sync automatico da `/api/plans/assigned`
+1. **Build nativa Capacitor** — Xcode/Android Studio + HealthKit/Health Connect (vedi `CAPACITOR.md`)
+2. **Fix stabilità dev** — verificare con Node 22 che lint/E2E passano
+3. **Pull piano assegnato** — già implementato in bootstrap app; verificare su device
 
 ### Priorità media
-4. **Edit esercizi nel piano** — non solo nome sessione, ma anche serie/reps/prescrizioni per coach
-5. **Undo calibrazioni corsa** — come già esiste per progressioni forza
-6. **Admin email list in UI** — gestione coach senza SQL/curl
+4. **Edit esercizi nel piano** — già in studio coach (serie/reps + run config)
+5. **Undo calibrazioni corsa** — già in Progressi
+6. **Garmin / Huawei** — via sync verso Apple Health / Health Connect (non SDK diretti)
 
 ### Priorità bassa
-7. Apple Health / Watch (non integrato, v1 esplicitamente escluso)
+7. Strava (opzionale, evita se possibile — richiede subscription/API limits)
 8. Notifiche push per seduta del giorno
 9. Multi-blocco (dopo settimana 8, nuovo blocco automatico)
 
