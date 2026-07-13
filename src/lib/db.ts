@@ -130,11 +130,19 @@ export class AssettoDatabase extends Dexie {
 
 export const db = new AssettoDatabase();
 
-export async function seedInitialData() {
+export async function seedInitialData(options?: {
+  name?: string;
+  preferredGreeting?: import("./types").PreferredGreeting;
+}) {
   const today = new Date().toISOString().slice(0, 10);
   await db.transaction("rw", db.tables, async () => {
     await Promise.all(db.tables.map((table) => table.clear()));
-    await db.profiles.add({ ...PROFILE, name: "Atleta", createdAt: new Date().toISOString() });
+    await db.profiles.add({
+      ...PROFILE,
+      name: options?.name?.trim() || "Atleta",
+      preferredGreeting: options?.preferredGreeting ?? "neutral",
+      createdAt: new Date().toISOString(),
+    });
     await db.equipment.bulkAdd(EQUIPMENT);
     await db.safetyProfiles.add({
       id: "safety-default",

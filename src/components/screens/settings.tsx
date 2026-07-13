@@ -20,6 +20,7 @@ import {
 import { clearDatabase, db, exportDatabase, exportHistoryCsv, getActiveBlockWeek, importDatabase } from "@/lib/db";
 import {
   cloudSyncAvailable,
+  getRemoteAccessToken,
   getRemoteUserEmail,
   pullSnapshotFromCloud,
   pushSnapshotToCloud,
@@ -29,6 +30,8 @@ import {
 } from "@/lib/remote-sync";
 import { TEMPLATES } from "@/lib/program";
 import { OpenAICoachAdapter } from "@/lib/sync-adapter";
+import type { PreferredGreeting } from "@/lib/types";
+import { getDisplayName } from "@/lib/user-display";
 import { IntegrationsPanel } from "../integrations-panel";
 import { Button, Field, Surface } from "../ui";
 
@@ -58,14 +61,53 @@ export function SettingsScreen() {
   const [password, setPassword] = useState("");
   const [remoteEmail, setRemoteEmail] = useState<string | null>(null);
   const account = useLiveQuery(() => db.accountProfiles.toCollection().first());
+  const profile = useLiveQuery(() => db.profiles.toCollection().first());
   const latestReview = useLiveQuery(() => db.coachReviews.orderBy("date").last());
   const blockWeek = useLiveQuery(() => getActiveBlockWeek(), [], 4);
   const syncEnabled = cloudSyncAvailable();
+  const [profileName, setProfileName] = useState("");
+  const [greeting, setGreeting] = useState<PreferredGreeting>("neutral");
 
   useEffect(() => {
     getRemoteUserEmail().then(setRemoteEmail).catch(() => setRemoteEmail(null));
     syncAccountProfile().catch(() => undefined);
   }, [status]);
+
+  useEffect(() => {
+    if (profile) {
+      setProfileName(profile.name);
+      setGreeting(profile.preferredGreeting ?? "neutral");
+    }
+  }, [profile]);
+
+  const saveProfile = async () => {
+    if (!profile) return;
+    const nextName = profileName.trim() || "Atleta";
+    await db.profiles.put({
+      ...profile,
+      name: nextName,
+      preferredGreeting: greeting,
+    });
+    if (account && syncEnabled) {
+      try {
+        const token = await getRemoteAccessToken();
+        if (token) {
+          await fetch("/api/me", {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ displayName: nextName }),
+          });
+          await syncAccountProfile().catch(() => undefined);
+        }
+      } catch {
+        // Local profile still saved.
+      }
+    }
+    setStatus("Profilo aggiornato.");
+  };
 
   const exportJson = async () => {
     download(`backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(await exportDatabase(), null, 2), "application/json");
@@ -210,6 +252,7 @@ export function SettingsScreen() {
   const isLoggedIn = Boolean(remoteEmail || account?.email);
   const displayEmail = remoteEmail ?? account?.email;
   const displayRole = account?.role;
+  const displayName = getDisplayName(account, profile);
 
   return (
     <div className="screen-stack">
@@ -218,6 +261,28 @@ export function SettingsScreen() {
         <h1>Impostazioni</h1>
         <p>Gestisci il tuo account, i dati e le preferenze di allenamento.</p>
       </header>
+
+      <Surface>
+        <div className="surface-heading">
+          <div>
+            <p className="date-label">Identità</p>
+            <h2>Nome e benvenuto</h2>
+          </div>
+          <User />
+        </div>
+        <p>Questo nome appare in alto nell&apos;app e nel messaggio di benvenuto.</p>
+        <Field label="Nome o nickname" value={profileName} onChange={(e) => setProfileName(e.target.value)} />
+        <label className="field">
+          <span>Forma di saluto</span>
+          <select value={greeting} onChange={(e) => setGreeting(e.target.value as PreferredGreeting)}>
+            <option value="neutral">Benvenuto/a</option>
+            <option value="benvenuto">Benvenuto</option>
+            <option value="benvenuta">Benvenuta</option>
+          </select>
+        </label>
+        <p className="quiet-note">Anteprima: {displayName}</p>
+        <Button onClick={saveProfile}>Salva profilo</Button>
+      </Surface>
 
       <Surface className="account-panel">
         <div className="surface-heading">
@@ -232,7 +297,8 @@ export function SettingsScreen() {
           <>
             <div className="account-badge">
               <div>
-                <strong>{displayEmail}</strong>
+                <strong>{displayName}</strong>
+                <span className="quiet-note">{displayEmail}</span>
                 {displayRole ? <span className={`role-chip role-${displayRole}`}>{roleLabels[displayRole]}</span> : null}
               </div>
             </div>

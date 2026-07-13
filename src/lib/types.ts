@@ -79,12 +79,15 @@ export interface PlanAssignment {
   active: boolean;
 }
 
+export type PreferredGreeting = "benvenuto" | "benvenuta" | "neutral";
+
 export interface UserProfile {
   id: Id;
   name: string;
   birthYear: number;
   primaryGoal: "hypertrophy";
   secondaryGoals: string[];
+  preferredGreeting?: PreferredGreeting;
   createdAt: string;
 }
 
@@ -139,6 +142,12 @@ export interface ExercisePrescription {
   tempo: string;
   rangeOfMotion: string;
   difficultyLevel: number;
+  /** Pausa tra le serie in secondi */
+  restSeconds?: number;
+  /** Suggerimento tecnico o coaching per il cliente */
+  hint?: string;
+  /** Carico target per manubrio (kg), se prescritto */
+  targetLoadKg?: number;
 }
 
 export interface WorkoutTemplate {

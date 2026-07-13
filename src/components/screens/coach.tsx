@@ -8,10 +8,12 @@ import { defaultTrainingPlan } from "@/lib/plans";
 import { canManagePlans } from "@/lib/roles";
 import { getRemoteAccessToken, syncAccountProfile } from "@/lib/remote-sync";
 import { EXERCISES, TEMPLATES } from "@/lib/program";
+import { getRunningExercises } from "@/lib/exercise-library";
 import type { ExercisePrescription, RunSession, TrainingPlan, TrainingPlanSession, UserRole } from "@/lib/types";
 import { Button, Field, Surface } from "../ui";
 
 const DAYS = ["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"];
+const COACH_EXERCISE_OPTIONS = [...EXERCISES, ...getRunningExercises()];
 
 function enrichSessions(planSessions: TrainingPlanSession[]): TrainingPlanSession[] {
   return planSessions.map((session) => {
@@ -372,7 +374,7 @@ export function CoachScreen() {
                 {expandedSession === session.templateId && session.kind === "strength" && session.prescriptions ? (
                   <div className="prescription-editor">
                     {session.prescriptions.map((prescription) => {
-                      const exercise = EXERCISES.find((entry) => entry.id === prescription.exerciseId);
+                      const exercise = COACH_EXERCISE_OPTIONS.find((entry) => entry.id === prescription.exerciseId);
                       return (
                         <div key={prescription.id} className="prescription-row">
                           <label className="field">
@@ -385,7 +387,7 @@ export function CoachScreen() {
                                 })
                               }
                             >
-                              {EXERCISES.map((entry) => (
+                              {COACH_EXERCISE_OPTIONS.map((entry) => (
                                 <option key={entry.id} value={entry.id}>{entry.name}</option>
                               ))}
                             </select>
@@ -421,7 +423,36 @@ export function CoachScreen() {
                                 })
                               }
                             />
+                            <Field
+                              label="Pausa (s)"
+                              type="number"
+                              value={prescription.restSeconds ?? 90}
+                              onChange={(e) =>
+                                updatePrescription(session.templateId, prescription.id, {
+                                  restSeconds: Number(e.target.value),
+                                })
+                              }
+                            />
+                            <Field
+                              label="Carico (kg)"
+                              type="number"
+                              value={prescription.targetLoadKg ?? ""}
+                              onChange={(e) =>
+                                updatePrescription(session.templateId, prescription.id, {
+                                  targetLoadKg: e.target.value === "" ? undefined : Number(e.target.value),
+                                })
+                              }
+                            />
                           </div>
+                          <Field
+                            label="Hint / suggerimento"
+                            value={prescription.hint ?? ""}
+                            onChange={(e) =>
+                              updatePrescription(session.templateId, prescription.id, {
+                                hint: e.target.value || undefined,
+                              })
+                            }
+                          />
                           <p className="quiet-note">{exercise?.pattern ?? "pattern"} · RIR {prescription.targetRir.join("–")}</p>
                         </div>
                       );

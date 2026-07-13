@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { ArrowLeft, ArrowRight, Check, RotateCcw, ShieldAlert, TimerReset, Undo2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Lightbulb, RotateCcw, ShieldAlert, TimerReset, Undo2 } from "lucide-react";
 import { z } from "zod";
 import type { DailyAdjustment } from "@/lib/autoregulation";
 import { completeWorkoutSession, db } from "@/lib/db";
+import { getExerciseById } from "@/lib/exercise-library";
 import { EXERCISES } from "@/lib/program";
 import type { DailyReadiness, SetLog, WorkoutSession, WorkoutTemplate } from "@/lib/types";
 import { Button, Field, ScaleControl, Toggle } from "../../ui";
@@ -188,9 +189,26 @@ function Workout({
     technique: "stable" as SetLog["technique"],
   });
   const [error, setError] = useState("");
+  const [restLeft, setRestLeft] = useState<number | null>(null);
   const active = template.prescriptions[exerciseIndex];
-  const exercise = EXERCISES.find((entry) => entry.id === active.exerciseId)!;
+  const exercise = getExerciseById(active.exerciseId) ?? EXERCISES.find((entry) => entry.id === active.exerciseId)!;
   const activeLogs = logs.filter((entry) => entry.prescriptionId === active.id);
+  const restTarget = active.restSeconds ?? 90;
+
+  useEffect(() => {
+    if (restLeft == null || restLeft <= 0) return;
+    const timer = window.setTimeout(() => setRestLeft((value) => (value == null ? null : value - 1)), 1000);
+    return () => window.clearTimeout(timer);
+  }, [restLeft]);
+
+  useEffect(() => {
+    setForm((current) => ({
+      ...current,
+      weight: active.targetLoadKg ?? current.weight,
+      reps: active.repRange?.[0] ?? current.reps,
+    }));
+    setRestLeft(null);
+  }, [active.id, active.repRange, active.targetLoadKg]);
 
   const saveSet = () => {
     const result = setSchema.safeParse(form);
@@ -218,6 +236,7 @@ function Workout({
     };
     setLogs([...logs, log]);
     setError("");
+    setRestLeft(restTarget);
   };
 
   const saveDraft = async () => {
@@ -241,8 +260,17 @@ function Workout({
         <button type="button" onClick={async () => { await saveDraft(); onStop(); }}>Termina</button>
       </header>
       <div className="prescription-band">
-        <strong>{active.sets} × {active.repRange?.join("–")} {exercise.unilateral ? "per lato" : ""}</strong>
-        <span>RIR {active.targetRir.join("–")} · {active.tempo}</span>
+        <strong>
+          {active.sets} × {active.secondsRange ? `${active.secondsRange.join("–")} s` : active.repRange?.join("–")}{" "}
+          {exercise.unilateral ? "per lato" : ""}
+        </strong>
+        <span>
+          RIR {active.targetRir.join("–")} · tempo {active.tempo}
+          {active.targetLoadKg != null ? ` · carico ${active.targetLoadKg} kg` : active.variant !== "standard" ? ` · ${active.variant}` : ""}
+          {" · "}pausa {restTarget} s
+        </span>
+        {active.hint ? <p className="scheda-hint"><Lightbulb size={16} aria-hidden="true" /> {active.hint}</p> : null}
+        <p className="quiet-note">ROM: {active.rangeOfMotion}</p>
       </div>
       <div className="set-number"><span>Serie</span><strong>{activeLogs.length + 1}</strong></div>
       <div className="set-grid">
@@ -266,8 +294,13 @@ function Workout({
       <div className="set-tools">
         <button type="button" onClick={saveSet}><RotateCcw /> Ripeti serie</button>
         <button type="button" onClick={() => setLogs(logs.slice(0, -1))} disabled={!logs.length}><Undo2 /> Undo</button>
-        <button type="button"><TimerReset /> Timer 90 s</button>
+        <button type="button" onClick={() => setRestLeft(restTarget)}>
+          <TimerReset /> {restLeft != null && restLeft > 0 ? `Pausa ${restLeft}s` : `Timer ${restTarget}s`}
+        </button>
       </div>
+      {restLeft != null && restLeft > 0 ? (
+        <p className="rest-timer" role="status">Pausa in corso: {restLeft}s</p>
+      ) : null}
       {activeLogs.length ? (
         <div className="logged-sets" aria-live="polite">
           {activeLogs.map((log) => (
