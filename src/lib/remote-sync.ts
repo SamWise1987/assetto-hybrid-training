@@ -5,11 +5,29 @@ import type { SyncPayload } from "./supabase/sync";
 
 export async function signInWithEmail(email: string) {
   const client = createBrowserSupabaseClient();
-  if (!client) throw new Error("Supabase non configurato.");
+  if (!client) throw new Error("Servizio di accesso non disponibile.");
 
   const { error } = await client.auth.signInWithOtp({
     email,
     options: { emailRedirectTo: `${window.location.origin}/` },
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function signInWithPassword(email: string, password: string) {
+  const client = createBrowserSupabaseClient();
+  if (!client) throw new Error("Servizio di accesso non disponibile.");
+
+  const { error } = await client.auth.signInWithPassword({ email, password });
+  if (error) throw new Error(error.message);
+}
+
+export async function sendPasswordReset(email: string) {
+  const client = createBrowserSupabaseClient();
+  if (!client) throw new Error("Servizio di accesso non disponibile.");
+
+  const { error } = await client.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/`,
   });
   if (error) throw new Error(error.message);
 }

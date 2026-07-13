@@ -1,6 +1,7 @@
 {
   "name": "roberta-functional",
   "version": "1.0.0",
+  "description": "App allenamento ibrido professionale",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -10,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "fetch-exercises": "node scripts/fetch-exercises.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.8.0",

@@ -34,7 +34,7 @@ import {
   toActivePrescriptions,
 } from "./training-engine";
 import { getDay, subWeeks } from "date-fns";
-import { DEMO_SEED } from "./program";
+import { BLOCK, DEMO_SEED, EQUIPMENT, EXERCISES, PROFILE, TEMPLATES } from "./program";
 
 const defaultSettings: AppSettings = {
   id: "app-settings",
@@ -127,6 +127,27 @@ export class AssettoDatabase extends Dexie {
 }
 
 export const db = new AssettoDatabase();
+
+export async function seedInitialData() {
+  const today = new Date().toISOString().slice(0, 10);
+  await db.transaction("rw", db.tables, async () => {
+    await Promise.all(db.tables.map((table) => table.clear()));
+    await db.profiles.add({ ...PROFILE, name: "Atleta", createdAt: new Date().toISOString() });
+    await db.equipment.bulkAdd(EQUIPMENT);
+    await db.safetyProfiles.add({
+      id: "safety-default",
+      limitations: [],
+      excludedExercises: [],
+      disclaimerAcceptedAt: new Date().toISOString(),
+    });
+    await db.blocks.add({ ...BLOCK, week: 1, startDate: today });
+    await db.exercises.bulkAdd(EXERCISES);
+    await db.templates.bulkAdd(TEMPLATES);
+    await db.runPlans.bulkAdd(seedRunPlansForWeek(1));
+    await db.appSettings.put(defaultSettings);
+    await db.trainingPlans.put(defaultTrainingPlan("initial"));
+  });
+}
 
 export async function seedDemoData() {
   await db.transaction("rw", db.tables, async () => {

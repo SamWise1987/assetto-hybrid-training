@@ -2,26 +2,34 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Brain, Cloud, Database, Download, LockKeyhole, RotateCcw, Shield, Sparkles, Trash2, Upload } from "lucide-react";
+import {
+  Cloud,
+  Download,
+  LogIn,
+  LogOut,
+  Shield,
+  Sparkles,
+  Trash2,
+  Upload,
+  User,
+} from "lucide-react";
 import {
   buildTrainingSnapshot,
   deterministicCoachReview,
-  loadLocalAiSettings,
-  saveLocalAiSettings,
 } from "@/lib/ai-coach";
-import { clearDatabase, db, exportDatabase, exportHistoryCsv, getActiveBlockWeek, importDatabase, seedDemoData } from "@/lib/db";
+import { clearDatabase, db, exportDatabase, exportHistoryCsv, getActiveBlockWeek, importDatabase } from "@/lib/db";
 import {
   cloudSyncAvailable,
   getRemoteUserEmail,
   pullSnapshotFromCloud,
   pushSnapshotToCloud,
-  signInWithEmail,
+  signInWithPassword,
   signOutRemote,
   syncAccountProfile,
 } from "@/lib/remote-sync";
 import { TEMPLATES } from "@/lib/program";
 import { OpenAICoachAdapter } from "@/lib/sync-adapter";
-import { Button, Field, Surface, Toggle } from "../ui";
+import { Button, Field, Surface } from "../ui";
 
 function download(name: string, content: string, type: string) {
   const url = URL.createObjectURL(new Blob([content], { type }));
@@ -32,15 +40,23 @@ function download(name: string, content: string, type: string) {
   URL.revokeObjectURL(url);
 }
 
+const roleLabels = {
+  admin: "Amministratore",
+  coach: "Trainer",
+  athlete: "Atleta",
+} as const;
+
 export function SettingsScreen() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState("");
   const [deleteStep, setDeleteStep] = useState(0);
   const [coachBusy, setCoachBusy] = useState(false);
   const [syncBusy, setSyncBusy] = useState(false);
+  const [loginBusy, setLoginBusy] = useState(false);
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [remoteEmail, setRemoteEmail] = useState<string | null>(null);
-  const [aiSettings, setAiSettings] = useState(loadLocalAiSettings);
+  const account = useLiveQuery(() => db.accountProfiles.toCollection().first());
   const latestReview = useLiveQuery(() => db.coachReviews.orderBy("date").last());
   const blockWeek = useLiveQuery(() => getActiveBlockWeek(), [], 4);
   const syncEnabled = cloudSyncAvailable();
@@ -51,22 +67,22 @@ export function SettingsScreen() {
   }, [status]);
 
   const exportJson = async () => {
-    download(`roberta-functional-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(await exportDatabase(), null, 2), "application/json");
-    setStatus("Backup JSON esportato.");
+    download(`backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(await exportDatabase(), null, 2), "application/json");
+    setStatus("Backup esportato con successo.");
   };
 
   const exportCsv = async () => {
-    download("roberta-functional-storico.csv", await exportHistoryCsv(), "text/csv");
-    setStatus("Storico CSV esportato.");
+    download("storico-allenamenti.csv", await exportHistoryCsv(), "text/csv");
+    setStatus("Storico esportato in CSV.");
   };
 
   const importFile = async (file?: File) => {
     if (!file) return;
     try {
       await importDatabase(JSON.parse(await file.text()));
-      setStatus("Backup importato.");
+      setStatus("Backup ripristinato.");
     } catch {
-      setStatus("Import non riuscito: file non valido.");
+      setStatus("File non valido. Controlla il formato JSON.");
     }
   };
 
@@ -76,12 +92,8 @@ export function SettingsScreen() {
       return;
     }
     await clearDatabase();
+    setDeleteStep(0);
     setStatus("Tutti i dati sono stati cancellati.");
-  };
-
-  const persistAiSettings = (next: typeof aiSettings) => {
-    setAiSettings(next);
-    saveLocalAiSettings(next);
   };
 
   const runCoachReview = async () => {
@@ -106,42 +118,62 @@ export function SettingsScreen() {
       let review = deterministicCoachReview(snapshot);
       let source: "openai" | "deterministic" = "deterministic";
 
-      if (aiSettings.enabled && aiSettings.apiKey) {
+      const response = await fetch("/api/coach", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ snapshot }),
+      });
+      if (response.ok) {
+        const body = (await response.json()) as { review: typeof review; fallback?: boolean };
+        review = body.review;
+        source = body.fallback ? "deterministic" : "openai";
+      } else {
         const adapter = new OpenAICoachAdapter();
-        const response = (await adapter.review(snapshot, aiSettings.apiKey)) as {
-          review: typeof review;
-          fallback?: boolean;
-        };
-        review = response.review;
-        source = response.fallback ? "deterministic" : "openai";
+        const fallback = (await adapter.review(snapshot)) as { review: typeof review; fallback?: boolean };
+        review = fallback.review;
+        source = fallback.fallback ? "deterministic" : "openai";
       }
 
       await db.coachReviews.put({ ...review, source });
       await db.appSettings.put({
         id: "app-settings",
-        aiCoachEnabled: aiSettings.enabled,
-        aiModel: aiSettings.model,
+        aiCoachEnabled: true,
+        aiModel: "gpt-4.1-mini",
         lastCoachReviewAt: new Date().toISOString(),
       });
-      setStatus(source === "openai" ? "Analisi AI completata." : "Analisi locale completata.");
+      setStatus("Analisi settimanale completata.");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Coach non disponibile.");
+      setStatus(error instanceof Error ? error.message : "Analisi non disponibile al momento.");
     } finally {
       setCoachBusy(false);
     }
   };
 
-  const sendMagicLink = async () => {
-    if (!email.includes("@")) {
-      setStatus("Inserisci un'email valida.");
+  const login = async () => {
+    if (!email.includes("@") || password.length < 6) {
+      setStatus("Inserisci email e password validi.");
       return;
     }
+    setLoginBusy(true);
     try {
-      await signInWithEmail(email);
-      setStatus("Link di accesso inviato. Controlla la posta e torna qui.");
+      await signInWithPassword(email, password);
+      await syncAccountProfile();
+      const loggedEmail = await getRemoteUserEmail();
+      setRemoteEmail(loggedEmail);
+      setPassword("");
+      setStatus(loggedEmail ? `Bentornato, ${loggedEmail}` : "Accesso effettuato.");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Accesso non riuscito.");
+      setStatus(error instanceof Error ? error.message : "Credenziali non valide.");
+    } finally {
+      setLoginBusy(false);
     }
+  };
+
+  const logout = async () => {
+    await signOutRemote();
+    await db.accountProfiles.clear();
+    setRemoteEmail(null);
+    setStatus("Disconnesso.");
   };
 
   const pushCloud = async () => {
@@ -149,9 +181,9 @@ export function SettingsScreen() {
     try {
       const payload = await exportDatabase();
       await pushSnapshotToCloud(payload, true);
-      setStatus("Backup sincronizzato su Supabase.");
+      setStatus("Dati sincronizzati nel cloud.");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Sync push fallita.");
+      setStatus(error instanceof Error ? error.message : "Sincronizzazione non riuscita.");
     } finally {
       setSyncBusy(false);
     }
@@ -162,130 +194,149 @@ export function SettingsScreen() {
     try {
       const payload = await pullSnapshotFromCloud();
       if (!payload) {
-        setStatus("Nessun backup remoto trovato.");
+        setStatus("Nessun backup trovato nel cloud.");
         return;
       }
       await importDatabase(payload);
-      setStatus("Backup remoto ripristinato sul dispositivo.");
+      setStatus("Dati ripristinati dal cloud.");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Sync pull fallita.");
+      setStatus(error instanceof Error ? error.message : "Ripristino non riuscito.");
     } finally {
       setSyncBusy(false);
     }
   };
 
+  const isLoggedIn = Boolean(remoteEmail || account?.email);
+  const displayEmail = remoteEmail ?? account?.email;
+  const displayRole = account?.role;
+
   return (
     <div className="screen-stack">
       <header className="section-heading">
-        <p className="date-label">Controllo locale</p>
+        <p className="date-label">Profilo</p>
         <h1>Impostazioni</h1>
-        <p>Local-first di default. Cloud e AI sono opt-in.</p>
+        <p>Gestisci il tuo account, i dati e le preferenze di allenamento.</p>
       </header>
 
-      <Surface className="privacy-panel">
-        <LockKeyhole />
-        <div>
-          <h2>I dati restano sul dispositivo</h2>
-          <p>IndexedDB locale. La sincronizzazione Supabase parte solo dopo login e consenso esplicito.</p>
+      <Surface className="account-panel">
+        <div className="surface-heading">
+          <div>
+            <p className="date-label">Accesso</p>
+            <h2>{isLoggedIn ? "Il tuo account" : "Accedi"}</h2>
+          </div>
+          <User />
         </div>
-      </Surface>
 
-      {syncEnabled ? (
-        <Surface>
-          <div className="surface-heading">
-            <div><p className="date-label">Backend cloud</p><h2>Supabase sync</h2></div>
-            <Cloud />
-          </div>
-          {remoteEmail ? <p>Connesso come <strong>{remoteEmail}</strong></p> : null}
-          <Field
-            label="Email per magic link"
-            type="email"
-            inputMode="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <div className="settings-actions">
-            <Button variant="secondary" onClick={sendMagicLink}>Invia link di accesso</Button>
-            <Button onClick={pushCloud} disabled={syncBusy}>Carica backup cloud</Button>
-            <Button variant="secondary" onClick={pullCloud} disabled={syncBusy}>Scarica backup cloud</Button>
-            {remoteEmail ? (
-              <Button variant="ghost" onClick={async () => { await signOutRemote(); setRemoteEmail(null); setStatus("Disconnesso."); }}>
-                Esci
-              </Button>
+        {isLoggedIn ? (
+          <>
+            <div className="account-badge">
+              <div>
+                <strong>{displayEmail}</strong>
+                {displayRole ? <span className={`role-chip role-${displayRole}`}>{roleLabels[displayRole]}</span> : null}
+              </div>
+            </div>
+            {syncEnabled ? (
+              <div className="settings-actions">
+                <Button variant="secondary" onClick={pushCloud} disabled={syncBusy}>
+                  <Cloud /> Sincronizza dati
+                </Button>
+                <Button variant="secondary" onClick={pullCloud} disabled={syncBusy}>
+                  <Download /> Ripristina dal cloud
+                </Button>
+              </div>
             ) : null}
-          </div>
-        </Surface>
-      ) : (
-        <Surface>
-          <p>Supabase non configurato. Imposta le variabili in <code>.env.local</code> e su Vercel.</p>
-        </Surface>
-      )}
+            <Button variant="ghost" onClick={logout}>
+              <LogOut /> Esci dall&apos;account
+            </Button>
+          </>
+        ) : syncEnabled ? (
+          <>
+            <p>Accedi con le credenziali fornite dal tuo trainer o amministratore.</p>
+            <Field
+              label="Email"
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            <Field
+              label="Password"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            <Button onClick={login} disabled={loginBusy}>
+              <LogIn /> {loginBusy ? "Accesso in corso…" : "Accedi"}
+            </Button>
+          </>
+        ) : (
+          <p>Il servizio di accesso non è ancora configurato. Contatta l&apos;amministratore.</p>
+        )}
+      </Surface>
 
       <Surface>
         <div className="surface-heading">
-          <div><p className="date-label">Coach intelligente</p><h2>OpenAI (opzionale)</h2></div>
-          <Brain />
+          <div>
+            <p className="date-label">Progressi</p>
+            <h2>Analisi settimanale</h2>
+          </div>
+          <Sparkles />
         </div>
-        <Toggle
-          label="Abilita revisione AI settimanale"
-          checked={aiSettings.enabled}
-          onChange={(enabled) => persistAiSettings({ ...aiSettings, enabled })}
-        />
-        <Field
-          label="Chiave API OpenAI (solo su questo dispositivo)"
-          type="password"
-          autoComplete="off"
-          value={aiSettings.apiKey ?? ""}
-          onChange={(e) => persistAiSettings({ ...aiSettings, apiKey: e.target.value })}
-        />
+        <p>Ricevi un riepilogo automatico della settimana con suggerimenti per la prossima fase.</p>
         <Button onClick={runCoachReview} disabled={coachBusy}>
-          <Sparkles /> {coachBusy ? "Analizzo la settimana…" : "Analisi settimanale"}
+          <Sparkles /> {coachBusy ? "Analisi in corso…" : "Avvia analisi"}
         </Button>
         {latestReview ? (
-          <aside className="rule-preview">
+          <aside className="coach-review-card">
             <strong>{latestReview.summary}</strong>
-            {latestReview.nextWeekFocus.map((item) => <p key={item}>{item}</p>)}
+            <ul>
+              {latestReview.nextWeekFocus.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
           </aside>
         ) : null}
       </Surface>
 
       <Surface>
         <div className="surface-heading">
-          <div><p className="date-label">Portabilità</p><h2>Backup ed esportazione</h2></div>
-          <Database />
+          <div>
+            <p className="date-label">Dati</p>
+            <h2>Backup e esportazione</h2>
+          </div>
+          <Download />
         </div>
+        <p>Esporta o importa i tuoi allenamenti per conservarli o trasferirli su un altro dispositivo.</p>
         <div className="settings-actions">
-          <Button onClick={exportJson}><Download /> Esporta database JSON</Button>
+          <Button onClick={exportJson}><Download /> Esporta backup</Button>
           <Button variant="secondary" onClick={exportCsv}><Download /> Esporta storico CSV</Button>
           <input ref={fileRef} className="visually-hidden" type="file" accept="application/json" onChange={(event) => importFile(event.target.files?.[0])} />
-          <Button variant="secondary" onClick={() => fileRef.current?.click()}><Upload /> Importa JSON</Button>
+          <Button variant="secondary" onClick={() => fileRef.current?.click()}><Upload /> Importa backup</Button>
         </div>
-      </Surface>
-
-      <Surface>
-        <div className="surface-heading">
-          <div><p className="date-label">Dati demo</p><h2>Ripristina la dimostrazione</h2></div>
-          <RotateCcw />
-        </div>
-        <Button variant="secondary" onClick={async () => { await seedDemoData(); setStatus("Seed demo ripristinato."); }}>
-          <RotateCcw /> Ripristina seed demo
-        </Button>
       </Surface>
 
       <Surface className="safety-settings">
         <div className="surface-heading">
-          <div><p className="date-label">Limiti clinici</p><h2>Sicurezza</h2></div>
+          <div>
+            <p className="date-label">Sicurezza</p>
+            <h2>Limiti e avvertenze</h2>
+          </div>
           <Shield />
         </div>
-        <p>RobertaFunctional non formula diagnosi né protocolli riabilitativi. Sintomi neurologici producono uno stop.</p>
+        <p>Questa app supporta l&apos;allenamento ma non sostituisce il parere di medico, fisiatra o fisioterapista. In caso di sintomi neurologici, interrompi subito l&apos;attività.</p>
       </Surface>
 
       <Surface className="danger-zone">
         <div className="surface-heading">
-          <div><p className="date-label">Zona dati</p><h2>Cancella tutto</h2></div>
+          <div>
+            <p className="date-label">Zona pericolosa</p>
+            <h2>Cancella tutti i dati</h2>
+          </div>
           <Trash2 />
         </div>
+        <p>Questa azione è irreversibile. Tutti gli allenamenti, i progressi e le impostazioni verranno eliminati.</p>
         <Button variant="danger" onClick={deleteAll}>
           <Trash2 /> {deleteStep === 0 ? "Inizia cancellazione" : deleteStep === 1 ? "Conferma cancellazione" : "Cancella definitivamente"}
         </Button>

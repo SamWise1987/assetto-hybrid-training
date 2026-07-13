@@ -97,6 +97,10 @@ export interface ExerciseDefinition {
   defaultSecondsRange?: [number, number];
   substitutions: string[];
   safetyNotes?: string[];
+  equipment?: string[];
+  description?: string;
+  imageUrl?: string | null;
+  category?: string;
 }
 
 export interface ExercisePrescription {

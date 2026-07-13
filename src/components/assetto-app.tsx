@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { BarChart3, CalendarDays, ClipboardList, Dumbbell, Home, Settings } from "lucide-react";
+import { BarChart3, CalendarDays, ClipboardList, Cloud, Dumbbell, Home, Settings } from "lucide-react";
 import { db } from "@/lib/db";
 import { canManagePlans } from "@/lib/roles";
+import { getRemoteUserEmail, syncAccountProfile } from "@/lib/remote-sync";
 import { useAppStore, type AppTab } from "@/lib/store";
 import { Onboarding } from "./onboarding";
 import { TodayScreen } from "./screens/today/index";
@@ -21,21 +23,43 @@ const baseTabs: { id: AppTab; label: string; icon: typeof Home }[] = [
   { id: "settings", label: "Impostazioni", icon: Settings },
 ];
 
+const roleLabels = {
+  admin: "Admin",
+  coach: "Trainer",
+  athlete: "Atleta",
+} as const;
+
 export function AssettoApp() {
   const profile = useLiveQuery(() => db.profiles.toCollection().first(), [], null);
   const account = useLiveQuery(() => db.accountProfiles.toCollection().first());
   const { tab, setTab } = useAppStore();
+  const [remoteEmail, setRemoteEmail] = useState<string | null>(null);
   const tabs = canManagePlans(account?.role)
     ? [...baseTabs.slice(0, 4), { id: "coach" as const, label: "Coach", icon: ClipboardList }, baseTabs[4]]
     : baseTabs;
 
+  useEffect(() => {
+    syncAccountProfile().catch(() => undefined);
+    getRemoteUserEmail().then(setRemoteEmail).catch(() => setRemoteEmail(null));
+  }, []);
+
   if (!profile) return <Onboarding />;
+
+  const statusLabel = account?.role
+    ? roleLabels[account.role]
+    : remoteEmail
+      ? "Connesso"
+      : "Online";
 
   return (
     <div className="app-shell">
       <header className="app-header">
         <span className="wordmark">RobertaFunctional</span>
-        <span className="local-status"><Home size={17} aria-hidden="true" /> Locale <i /></span>
+        <span className="cloud-status">
+          <Cloud size={17} aria-hidden="true" />
+          {statusLabel}
+          <i />
+        </span>
       </header>
       <main id="main-content" className="main-content">
         {tab === "today" ? <TodayScreen /> : null}
