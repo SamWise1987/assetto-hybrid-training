@@ -1,9 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Activity, Link2, Unlink, Upload } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Activity, Link2, Smartphone, Unlink, Upload, Watch } from "lucide-react";
 import { importExternalRun } from "@/lib/db";
 import { gpxToRunSession, parseGpx } from "@/lib/gpx-import";
+import {
+  getNativeHealthAvailability,
+  importNativeWorkouts,
+  isNativeShell,
+  type NativeHealthAvailability,
+} from "@/lib/native-health";
 import { getRemoteAccessToken } from "@/lib/remote-sync";
 import { stravaActivityToRunSession, type StravaActivity } from "@/lib/strava";
 import { useAppStore } from "@/lib/store";
@@ -14,11 +20,17 @@ export function IntegrationsPanel({ onStatus }: { onStatus: (message: string) =>
   const [stravaConnected, setStravaConnected] = useState(false);
   const [stravaConfigured, setStravaConfigured] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [health, setHealth] = useState<NativeHealthAvailability | null>(null);
   const integrationMessage = useAppStore((state) => state.integrationMessage);
+  const report = useCallback((message: string) => onStatus(message), [onStatus]);
 
   useEffect(() => {
-    if (integrationMessage) onStatus(integrationMessage);
-  }, [integrationMessage, onStatus]);
+    if (integrationMessage) report(integrationMessage);
+  }, [integrationMessage, report]);
+
+  useEffect(() => {
+    getNativeHealthAvailability().then(setHealth).catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     getRemoteAccessToken()
@@ -35,17 +47,33 @@ export function IntegrationsPanel({ onStatus }: { onStatus: (message: string) =>
       .catch(() => undefined);
   }, []);
 
+  const importFromWatch = async () => {
+    setBusy(true);
+    try {
+      const result = await importNativeWorkouts(30);
+      report(
+        result.imported
+          ? `${result.imported} corse importate da ${health?.platform === "ios" ? "Apple Health" : "Health Connect"}${result.skipped ? ` (${result.skipped} già presenti)` : ""}.`
+          : "Nessuna nuova corsa/camminata da importare.",
+      );
+    } catch (error) {
+      report(error instanceof Error ? error.message : "Import nativo fallito.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const connectStrava = async () => {
     const token = await getRemoteAccessToken();
     if (!token) {
-      onStatus("Accedi con il tuo account prima di collegare Strava.");
+      report("Accedi con il tuo account prima di collegare Strava.");
       return;
     }
     const response = await fetch("/api/strava/auth", {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!response.ok) {
-      onStatus("Strava non disponibile sul server.");
+      report("Strava non disponibile sul server.");
       return;
     }
     const body = (await response.json()) as { url: string };
@@ -57,7 +85,7 @@ export function IntegrationsPanel({ onStatus }: { onStatus: (message: string) =>
     if (!token) return;
     await fetch("/api/strava/status", { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
     setStravaConnected(false);
-    onStatus("Strava scollegato.");
+    report("Strava scollegato.");
   };
 
   const importStrava = async () => {
@@ -77,9 +105,9 @@ export function IntegrationsPanel({ onStatus }: { onStatus: (message: string) =>
         const result = await importExternalRun(run);
         if (result.imported) imported += 1;
       }
-      onStatus(imported ? `${imported} corse importate da Strava.` : "Nessuna nuova corsa da importare.");
+      report(imported ? `${imported} corse importate da Strava.` : "Nessuna nuova corsa da importare.");
     } catch (error) {
-      onStatus(error instanceof Error ? error.message : "Import fallito.");
+      report(error instanceof Error ? error.message : "Import fallito.");
     } finally {
       setBusy(false);
     }
@@ -93,56 +121,62 @@ export function IntegrationsPanel({ onStatus }: { onStatus: (message: string) =>
       if (!parsed) throw new Error("File GPX non valido.");
       const run = gpxToRunSession(parsed);
       const result = await importExternalRun(run);
-      onStatus(
+      report(
         result.imported
           ? `Corsa importata: ${parsed.distanceKm} km in ${parsed.durationMinutes} min.`
           : "Questa corsa era già presente.",
       );
     } catch (error) {
-      onStatus(error instanceof Error ? error.message : "Import GPX fallito.");
+      report(error instanceof Error ? error.message : "Import GPX fallito.");
     } finally {
       setBusy(false);
     }
   };
+
+  const nativeReady = Boolean(health?.available);
+  const onWeb = !isNativeShell();
 
   return (
     <Surface>
       <div className="surface-heading">
         <div>
           <p className="date-label">Integrazioni</p>
-          <h2>Corsa da app e dispositivi</h2>
+          <h2>Corsa da orologio e dispositivi</h2>
         </div>
-        <Activity />
+        <Watch />
       </div>
       <p>
-        Collega Strava per importare automaticamente le corse registrate su Apple Watch, Garmin o altre app.
-        Su iOS e Android funziona dal browser installato come app (PWA).
+        Percorso principale: app nativa Capacitor che legge Apple Health (iPhone/Apple Watch)
+        e Health Connect (Android / Garmin / Huawei quando sincronizzati). Niente subscription Strava.
       </p>
 
       <div className="integration-card">
-        <strong>Strava</strong>
-        <p>Sincronizza le corse degli ultimi 30 giorni. Compatibile con Runna, Nike Run Club e la maggior parte dei tracker.</p>
-        {stravaConfigured ? (
-          stravaConnected ? (
-            <div className="settings-actions">
-              <Button variant="secondary" onClick={importStrava} disabled={busy}>
-                <Link2 /> {busy ? "Import in corso…" : "Importa corse"}
-              </Button>
-              <Button variant="ghost" onClick={disconnectStrava}>
-                <Unlink /> Scollega
-              </Button>
-            </div>
-          ) : (
-            <Button onClick={connectStrava}><Link2 /> Collega Strava</Button>
-          )
+        <strong>Apple Health / Health Connect</strong>
+        <p>
+          Importa allenamenti di corsa e camminata dagli ultimi 30 giorni. Funziona con Apple Watch,
+          e con Garmin / Huawei se l&apos;utente abilita la sincronizzazione verso Apple Salute o Health Connect.
+        </p>
+        {nativeReady ? (
+          <Button onClick={importFromWatch} disabled={busy}>
+            <Watch /> {busy ? "Import in corso…" : "Importa da orologio"}
+          </Button>
         ) : (
-          <p className="quiet-note">Strava non configurato sul server (variabili STRAVA_CLIENT_ID / STRAVA_CLIENT_SECRET).</p>
+          <>
+            <p className="quiet-note">
+              {onWeb
+                ? "Apri l'app nativa iOS/Android (Capacitor) per collegare HealthKit / Health Connect. Sul browser resta disponibile l'import GPX."
+                : health?.reason ?? "Salute nativa non disponibile su questo dispositivo."}
+            </p>
+            {onWeb ? (
+              <p className="quiet-note"><Smartphone /> Build: vedi CAPACITOR.md — `npx cap open ios|android`.</p>
+            ) : null}
+          </>
         )}
       </div>
 
       <div className="integration-card">
         <strong>File GPX</strong>
-        <p>Importa un tracciato esportato da Apple Health, Garmin Connect o altre app.</p>
+        <p>Fallback universale: esporti da Apple Health, Garmin Connect, Huawei Health, e importi qui.</p>
         <input ref={gpxRef} className="visually-hidden" type="file" accept=".gpx,application/gpx+xml" onChange={(event) => importGpx(event.target.files?.[0])} />
         <Button variant="secondary" onClick={() => gpxRef.current?.click()} disabled={busy}>
           <Upload /> Importa GPX
@@ -150,11 +184,36 @@ export function IntegrationsPanel({ onStatus }: { onStatus: (message: string) =>
       </div>
 
       <div className="integration-card muted">
-        <strong>Apple Health e Health Connect</strong>
+        <strong>Strava (opzionale)</strong>
         <p>
-          L&apos;accesso diretto richiede l&apos;app nativa (HealthKit / Health Connect).
-          Per ora usa Strava come ponte o importa GPX. Un wrapper Capacitor è previsto nella roadmap.
+          Non richiesto. Utile solo se hai già un account Strava free/paid e preferisci quel ponte.
+          La strada ufficiale per RobertaFunctional è Capacitor + salute nativa.
         </p>
+        {stravaConfigured ? (
+          stravaConnected ? (
+            <div className="settings-actions">
+              <Button variant="secondary" onClick={importStrava} disabled={busy}>
+                <Link2 /> {busy ? "Import in corso…" : "Importa da Strava"}
+              </Button>
+              <Button variant="ghost" onClick={disconnectStrava}>
+                <Unlink /> Scollega
+              </Button>
+            </div>
+          ) : (
+            <Button variant="ghost" onClick={connectStrava}><Link2 /> Collega Strava (opzionale)</Button>
+          )
+        ) : (
+          <p className="quiet-note">Strava non configurato — ok, non serve per la produzione nativa.</p>
+        )}
+      </div>
+
+      <div className="integration-card muted">
+        <strong>Come collegare i dispositivi</strong>
+        <ul className="integration-list">
+          <li><Activity /> Apple Watch → Apple Salute (automatico)</li>
+          <li>Garmin → Garmin Connect → sincronizza con Apple Salute / Health Connect</li>
+          <li>Huawei → Huawei Health → Health Connect (Android) o export GPX</li>
+        </ul>
       </div>
     </Surface>
   );
