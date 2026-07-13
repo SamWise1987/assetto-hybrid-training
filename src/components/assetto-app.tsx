@@ -14,6 +14,7 @@ import { TodayScreen } from "./screens/today/index";
 import { CalendarScreen } from "./screens/calendar";
 import { ProgressScreen } from "./screens/progress";
 import { ExercisesScreen } from "./screens/exercises";
+import { MySchedeScreen } from "./screens/my-schede";
 import { CoachScreen } from "./screens/coach";
 import { SettingsScreen } from "./screens/settings";
 
@@ -21,6 +22,7 @@ const athleteTabs: { id: AppTab; label: string; icon: typeof Home }[] = [
   { id: "today", label: "Oggi", icon: Home },
   { id: "calendar", label: "Calendario", icon: CalendarDays },
   { id: "progress", label: "Progressi", icon: BarChart3 },
+  { id: "exercises", label: "Esercizi", icon: Dumbbell },
   { id: "settings", label: "Impostazioni", icon: Settings },
 ];
 
@@ -68,7 +70,7 @@ export function AssettoApp() {
   }, [setIntegrationMessage, setPlanNotice]);
 
   useEffect(() => {
-    if (!isStaff && (tab === "exercises" || tab === "coach")) {
+    if (!isStaff && tab === "coach") {
       setTab("today");
     }
   }, [isStaff, setTab, tab]);
@@ -100,7 +102,7 @@ export function AssettoApp() {
         {tab === "today" ? <TodayScreen /> : null}
         {tab === "calendar" ? <CalendarScreen /> : null}
         {tab === "progress" ? <ProgressScreen /> : null}
-        {tab === "exercises" && isStaff ? <ExercisesScreen /> : null}
+        {tab === "exercises" ? (isStaff ? <ExercisesScreen /> : <MySchedeScreen />) : null}
         {tab === "coach" && isStaff ? <CoachScreen /> : null}
         {tab === "settings" ? <SettingsScreen /> : null}
       </main>
