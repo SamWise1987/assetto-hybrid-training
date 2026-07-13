@@ -32,6 +32,7 @@ import { TEMPLATES } from "@/lib/program";
 import { OpenAICoachAdapter } from "@/lib/sync-adapter";
 import type { PreferredGreeting } from "@/lib/types";
 import { getDisplayName } from "@/lib/user-display";
+import { GlossarySection } from "../glossary-section";
 import { IntegrationsPanel } from "../integrations-panel";
 import { Button, Field, Surface } from "../ui";
 
@@ -347,6 +348,8 @@ export function SettingsScreen() {
       </Surface>
 
       <IntegrationsPanel onStatus={setStatus} />
+
+      <GlossarySection />
 
       <Surface>
         <div className="surface-heading">

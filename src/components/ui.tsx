@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, CSSProperties, InputHTMLAttributes, ReactNode } from "react";
 
 export function Button({ className = "", variant = "primary", ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "danger" | "ghost" }) {
   return <button className={`button button-${variant} ${className}`} {...props} />;
@@ -18,14 +18,49 @@ export function Field({ label, hint, ...props }: InputHTMLAttributes<HTMLInputEl
   );
 }
 
-export function ScaleControl({ label, value, min, max, onChange }: { label: string; value: number; min: number; max: number; onChange: (value: number) => void }) {
+/** Barra progressiva per sensazioni / scale numeriche (più comoda dei bottoni). */
+export function ScaleControl({
+  label,
+  value,
+  min,
+  max,
+  onChange,
+  lowLabel,
+  highLabel,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (value: number) => void;
+  lowLabel?: string;
+  highLabel?: string;
+}) {
+  const pct = max === min ? 0 : ((value - min) / (max - min)) * 100;
   return (
-    <fieldset className="scale-control">
-      <legend>{label}</legend>
-      <div>
-        {Array.from({ length: max - min + 1 }, (_, index) => index + min).map((option) => (
-          <button key={option} type="button" aria-pressed={value === option} onClick={() => onChange(option)}>{option}</button>
-        ))}
+    <fieldset className="progress-scale">
+      <legend>
+        <span>{label}</span>
+        <strong aria-live="polite">{value}</strong>
+      </legend>
+      <div className="progress-scale-track">
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={1}
+          value={value}
+          aria-valuemin={min}
+          aria-valuemax={max}
+          aria-valuenow={value}
+          aria-label={label}
+          onChange={(event) => onChange(Number(event.target.value))}
+          style={{ "--scale-pct": `${pct}%` } as CSSProperties}
+        />
+      </div>
+      <div className="progress-scale-ends">
+        <span>{lowLabel ?? min}</span>
+        <span>{highLabel ?? max}</span>
       </div>
     </fieldset>
   );

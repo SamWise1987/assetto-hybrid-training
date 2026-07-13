@@ -112,6 +112,7 @@ export function TodayScreen() {
   const blockWeek = useLiveQuery(() => getActiveBlockWeek(), [], 4);
   const [mode, setMode] = useState<Mode>("overview");
   const [readiness, setReadiness] = useState(makeReadiness);
+  const [sessionStartedAt, setSessionStartedAt] = useState<string | null>(null);
   const hydrated = useSyncExternalStore(() => () => undefined, () => true, () => false);
 
   const template = useMemo(
@@ -156,10 +157,21 @@ export function TodayScreen() {
         readiness={readiness}
         setReadiness={setReadiness}
         adjustment={adjustment}
+        sessionStartedAt={sessionStartedAt}
+        onSessionStart={() => setSessionStartedAt(new Date().toISOString())}
       />
     );
   }
-  if (mode === "done") return <CompletionPanel onHome={() => setMode("overview")} />;
+  if (mode === "done") {
+    return (
+      <CompletionPanel
+        onHome={() => {
+          setSessionStartedAt(null);
+          setMode("overview");
+        }}
+      />
+    );
+  }
   if (mode === "next-day") return <NextDayPanel onBack={() => setMode("overview")} />;
 
   const firstPrescription = template.prescriptions[0];

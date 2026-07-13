@@ -201,8 +201,12 @@ export interface WorkoutSession {
   status: "planned" | "in-progress" | "complete" | "skipped" | "stopped";
   readinessId?: Id;
   setLogs: SetLog[];
+  startedAt?: string;
+  endedAt?: string;
   sessionRpe?: number;
   durationMinutes?: number;
+  /** Durata precisa in formato M:SS o H:MM:SS */
+  durationPrecise?: string;
   shoulderPainAfter?: number;
   cervicalPainAfter?: number;
   modifiedExerciseIds: Id[];
