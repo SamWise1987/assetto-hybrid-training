@@ -3,6 +3,7 @@
 import Dexie, { type EntityTable } from "dexie";
 import type {
   ActivePrescription,
+  AccountProfile,
   AppSettings,
   ClinicalSafetyProfile,
   CoachReview,
@@ -11,16 +12,19 @@ import type {
   Equipment,
   ExerciseDefinition,
   NextDayResponse,
+  PlanAssignment,
   ProgressionDecision,
   RunCalibrationDecision,
   RunPlan,
   RunSession,
+  TemplateCustomization,
   TrainingBlock,
+  TrainingPlan,
   UserProfile,
   WorkoutSession,
   WorkoutTemplate,
 } from "./types";
-import { DEMO_SEED } from "./program";
+import { defaultTrainingPlan } from "./plans";
 import {
   buildWeeklyRunContext,
   evaluateWorkoutProgressions,
@@ -30,6 +34,7 @@ import {
   toActivePrescriptions,
 } from "./training-engine";
 import { getDay, subWeeks } from "date-fns";
+import { DEMO_SEED } from "./program";
 
 const defaultSettings: AppSettings = {
   id: "app-settings",
@@ -55,6 +60,10 @@ export class AssettoDatabase extends Dexie {
   runCalibrationDecisions!: EntityTable<RunCalibrationDecision, "id">;
   appSettings!: EntityTable<AppSettings, "id">;
   coachReviews!: EntityTable<CoachReview, "id">;
+  templateCustomizations!: EntityTable<TemplateCustomization, "id">;
+  trainingPlans!: EntityTable<TrainingPlan, "id">;
+  planAssignments!: EntityTable<PlanAssignment, "id">;
+  accountProfiles!: EntityTable<AccountProfile, "id">;
 
   constructor() {
     super("assetto-local-v1");
@@ -91,6 +100,29 @@ export class AssettoDatabase extends Dexie {
       appSettings: "id",
       coachReviews: "id, date, week",
     });
+    this.version(3).stores({
+      profiles: "id, createdAt",
+      equipment: "id, kind",
+      safetyProfiles: "id",
+      blocks: "id, startDate, status",
+      exercises: "id, pattern, *muscleGroups",
+      templates: "id, dayOfWeek, kind",
+      workoutSessions: "id, date, templateId, status",
+      runs: "id, date, type, status",
+      readiness: "id, date",
+      nextDayResponses: "id, sessionId, date",
+      progressionDecisions: "id, exerciseId, date, action",
+      deloadDecisions: "id, date, scheduled",
+      activePrescriptions: "id, exerciseId, templateId",
+      runPlans: "id, date, dayOfWeek, week, status",
+      runCalibrationDecisions: "id, date, targetDate, rule",
+      appSettings: "id",
+      coachReviews: "id, date, week",
+      templateCustomizations: "id, templateId",
+      trainingPlans: "id, createdAt, createdBy",
+      planAssignments: "id, planId, athleteEmail, active",
+      accountProfiles: "id, userId, email, role",
+    });
   }
 }
 
@@ -111,7 +143,53 @@ export async function seedDemoData() {
     await db.progressionDecisions.bulkAdd(DEMO_SEED.decisions);
     await db.runPlans.bulkAdd(seedRunPlansForWeek(DEMO_SEED.block.week));
     await db.appSettings.put(defaultSettings);
+    await db.trainingPlans.put(defaultTrainingPlan("seed"));
   });
+}
+
+export async function saveTemplateCustomization(custom: TemplateCustomization) {
+  await db.templateCustomizations.put(custom);
+}
+
+export async function saveTrainingPlan(plan: TrainingPlan) {
+  await db.transaction("rw", [db.trainingPlans, db.templateCustomizations], async () => {
+    await db.trainingPlans.put(plan);
+    const { planSessionsToCustomizations } = await import("./plans");
+    await db.templateCustomizations.bulkPut(planSessionsToCustomizations(plan));
+  });
+}
+
+export async function assignPlanLocally(assignment: PlanAssignment) {
+  await db.transaction("rw", db.planAssignments, async () => {
+    const existing = await db.planAssignments.toArray();
+    await Promise.all(
+      existing
+        .filter((entry) => entry.athleteEmail.toLowerCase() === assignment.athleteEmail.toLowerCase())
+        .map((entry) => db.planAssignments.put({ ...entry, active: false })),
+    );
+    await db.planAssignments.put(assignment);
+  });
+}
+
+export async function getResolvedTemplates() {
+  const [storedTemplates, customizations, plans, assignments, account] = await Promise.all([
+    db.templates.toArray(),
+    db.templateCustomizations.toArray(),
+    db.trainingPlans.toArray(),
+    db.planAssignments.toArray(),
+    db.accountProfiles.toCollection().first(),
+  ]);
+  const activeAssignment = account
+    ? assignments.find(
+        (entry) => entry.active && entry.athleteEmail.toLowerCase() === account.email.toLowerCase(),
+      )
+    : assignments.find((entry) => entry.active);
+  const activePlan = activeAssignment
+    ? plans.find((plan) => plan.id === activeAssignment.planId) ?? null
+    : plans.at(-1) ?? null;
+
+  const { resolveTemplates } = await import("./templates");
+  return resolveTemplates(storedTemplates, customizations, activePlan);
 }
 
 export async function ensureRunPlansForCurrentWeek() {

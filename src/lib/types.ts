@@ -4,6 +4,56 @@ export type TechniqueQuality = "stable" | "uncertain" | "stopped";
 export type SessionKind = "strength" | "run" | "recovery" | "free";
 export type DecisionAction = "progress" | "maintain" | "reduce" | "substitute" | "stop";
 
+export type UserRole = "admin" | "coach" | "athlete";
+
+export interface AccountProfile {
+  id: Id;
+  userId: Id;
+  email: string;
+  displayName: string;
+  role: UserRole;
+  updatedAt: string;
+}
+
+export interface TemplateCustomization {
+  id: Id;
+  templateId: Id;
+  name: string;
+  notes?: string[];
+  estimatedMinutes?: number;
+  updatedAt: string;
+  updatedBy?: string;
+}
+
+export interface TrainingPlan {
+  id: Id;
+  name: string;
+  description?: string;
+  sessions: TrainingPlanSession[];
+  createdBy: Id;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TrainingPlanSession {
+  templateId: Id;
+  dayOfWeek: number;
+  displayName: string;
+  kind: SessionKind;
+  estimatedMinutes: number;
+  notes?: string[];
+}
+
+export interface PlanAssignment {
+  id: Id;
+  planId: Id;
+  athleteEmail: string;
+  athleteUserId?: Id;
+  assignedBy: Id;
+  assignedAt: string;
+  active: boolean;
+}
+
 export interface UserProfile {
   id: Id;
   name: string;

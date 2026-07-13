@@ -4,7 +4,7 @@ import { useMemo, useState, useSyncExternalStore } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { ArrowRight, Clock3, Footprints, Sparkles } from "lucide-react";
 import { adjustForReadiness } from "@/lib/autoregulation";
-import { db, getActiveBlockWeek, getTodayRunPlan } from "@/lib/db";
+import { db, getActiveBlockWeek, getResolvedTemplates, getTodayRunPlan } from "@/lib/db";
 import { EXERCISES, getCycleTargets } from "@/lib/program";
 import { getTemplateForDayWithOverrides } from "@/lib/training-engine";
 import type { DailyReadiness } from "@/lib/types";
@@ -33,7 +33,8 @@ export const makeReadiness = (): DailyReadiness => ({
 });
 
 export function TodayScreen() {
-  const activePrescriptions = useLiveQuery(() => db.activePrescriptions.toArray(), [], []);
+  const activePrescriptions = useLiveQuery(() => db.activePrescriptions.toArray(), [], []) ?? [];
+  const resolvedTemplates = useLiveQuery(() => getResolvedTemplates(), [], []) ?? [];
   const latestDecision = useLiveQuery(() => db.progressionDecisions.orderBy("date").last());
   const latestRunCalibration = useLiveQuery(() => db.runCalibrationDecisions.orderBy("date").last());
   const runPlan = useLiveQuery(() => getTodayRunPlan(today), [isoToday]);
@@ -43,8 +44,8 @@ export function TodayScreen() {
   const hydrated = useSyncExternalStore(() => () => undefined, () => true, () => false);
 
   const template = useMemo(
-    () => getTemplateForDayWithOverrides(today.getDay(), activePrescriptions),
-    [activePrescriptions],
+    () => getTemplateForDayWithOverrides(today.getDay(), activePrescriptions, resolvedTemplates),
+    [activePrescriptions, resolvedTemplates],
   );
   const adjustment = adjustForReadiness(readiness);
   const targets = getCycleTargets(blockWeek);

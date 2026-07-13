@@ -17,6 +17,7 @@ import {
   pushSnapshotToCloud,
   signInWithEmail,
   signOutRemote,
+  syncAccountProfile,
 } from "@/lib/remote-sync";
 import { TEMPLATES } from "@/lib/program";
 import { OpenAICoachAdapter } from "@/lib/sync-adapter";
@@ -46,6 +47,7 @@ export function SettingsScreen() {
 
   useEffect(() => {
     getRemoteUserEmail().then(setRemoteEmail).catch(() => setRemoteEmail(null));
+    syncAccountProfile().catch(() => undefined);
   }, [status]);
 
   const exportJson = async () => {

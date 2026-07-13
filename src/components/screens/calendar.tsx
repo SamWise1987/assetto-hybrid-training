@@ -4,8 +4,7 @@ import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { CalendarCheck, Check, Footprints, Info, MoveRight } from "lucide-react";
 import { z } from "zod";
-import { completeRunSession, db, ensureRunPlansForCurrentWeek, getActiveBlockWeek } from "@/lib/db";
-import { TEMPLATES } from "@/lib/program";
+import { completeRunSession, db, ensureRunPlansForCurrentWeek, getActiveBlockWeek, getResolvedTemplates } from "@/lib/db";
 import type { RunSession } from "@/lib/types";
 import { Button, Field, ScaleControl, Surface } from "../ui";
 
@@ -21,9 +20,12 @@ export function CalendarScreen() {
   const runPlans = useLiveQuery(() => ensureRunPlansForCurrentWeek(), []) ?? [];
   const calibrations = useLiveQuery(() => db.runCalibrationDecisions.orderBy("date").reverse().toArray()) ?? [];
   const blockWeek = useLiveQuery(() => getActiveBlockWeek(), [], 4);
+  const resolvedTemplates = useLiveQuery(() => getResolvedTemplates(), [], []) ?? [];
   const [showRun, setShowRun] = useState(false);
   const [moveMessage, setMoveMessage] = useState("");
-  const ordered = [1, 2, 3, 4, 5, 6, 0].map((day) => TEMPLATES.find((template) => template.dayOfWeek === day)!);
+  const ordered = [1, 2, 3, 4, 5, 6, 0]
+    .map((day) => resolvedTemplates.find((template) => template.dayOfWeek === day))
+    .filter((template): template is NonNullable<typeof template> => Boolean(template));
 
   return (
     <div className="screen-stack">

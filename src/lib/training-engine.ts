@@ -114,8 +114,9 @@ export function toActivePrescriptions(
 export function mergeTemplatePrescriptions(
   templateId: string,
   activePrescriptions: readonly ActivePrescription[],
+  templates: readonly import("./types").WorkoutTemplate[] = TEMPLATES,
 ): ExercisePrescription[] {
-  const template = TEMPLATES.find((entry) => entry.id === templateId);
+  const template = templates.find((entry) => entry.id === templateId);
   if (!template) return [];
 
   const overrides = new Map(
@@ -132,11 +133,12 @@ export function mergeTemplatePrescriptions(
 export function getTemplateForDayWithOverrides(
   dayOfWeek: number,
   activePrescriptions: readonly ActivePrescription[],
+  templates: readonly import("./types").WorkoutTemplate[],
 ) {
-  const template = TEMPLATES.find((entry) => entry.dayOfWeek === dayOfWeek) ?? TEMPLATES[0];
+  const template = templates.find((entry) => entry.dayOfWeek === dayOfWeek) ?? templates[0];
   return {
     ...template,
-    prescriptions: mergeTemplatePrescriptions(template.id, activePrescriptions),
+    prescriptions: mergeTemplatePrescriptions(template.id, activePrescriptions, templates),
   };
 }
 

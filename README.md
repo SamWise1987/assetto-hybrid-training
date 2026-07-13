@@ -105,6 +105,19 @@ cp .env.example .env.local
 
 RLS garantisce che ogni utente veda solo i propri snapshot.
 
+## Ruoli admin / coach
+
+1. Imposta la tua email in `ASSETTO_ADMIN_EMAILS` (`.env.local` e Vercel).
+2. Accedi con magic link in **Impostazioni**.
+3. Al primo login diventi **admin** e compare il tab **Coach**.
+4. In **Studio piani** puoi:
+   - rinominare ogni allenamento (es. "Forza A" → "Upper ipertrofia");
+   - salvare un piano personalizzato su Supabase;
+   - assegnarlo a un atleta tramite email.
+5. Per promuovere un coach: `POST /api/admin/roles` con `{ "email": "...", "role": "coach" }`.
+
+Esegui anche `supabase/migrations/002_roles_and_plans.sql` nel SQL Editor.
+
 ## Coach AI (opzionale)
 
 1. Copia `.env.example` in `.env.local` e imposta `OPENAI_API_KEY`.

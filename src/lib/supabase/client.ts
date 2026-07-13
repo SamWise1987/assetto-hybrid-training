@@ -44,6 +44,62 @@ export type Database = {
           device_id: string;
         };
       };
+      user_roles: {
+        Row: {
+          user_id: string;
+          email: string;
+          display_name: string;
+          role: "admin" | "coach" | "athlete";
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          email: string;
+          display_name?: string;
+          role?: "admin" | "coach" | "athlete";
+        };
+        Update: Partial<Database["public"]["Tables"]["user_roles"]["Insert"]>;
+      };
+      training_plans: {
+        Row: {
+          id: string;
+          name: string;
+          description: string | null;
+          sessions: import("@/lib/types").TrainingPlanSession[];
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          description?: string | null;
+          sessions: import("@/lib/types").TrainingPlanSession[];
+          created_by: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["training_plans"]["Insert"]>;
+      };
+      plan_assignments: {
+        Row: {
+          id: string;
+          plan_id: string;
+          athlete_email: string;
+          athlete_user_id: string | null;
+          assigned_by: string;
+          assigned_at: string;
+          active: boolean;
+        };
+        Insert: {
+          id?: string;
+          plan_id: string;
+          athlete_email: string;
+          athlete_user_id?: string | null;
+          assigned_by: string;
+          active?: boolean;
+        };
+        Update: Partial<Database["public"]["Tables"]["plan_assignments"]["Insert"]>;
+      };
     };
   };
 };

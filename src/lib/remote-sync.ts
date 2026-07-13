@@ -34,6 +34,26 @@ export async function getRemoteUserEmail() {
   return data.user?.email ?? null;
 }
 
+export async function syncAccountProfile() {
+  const token = await getRemoteAccessToken();
+  if (!token) return null;
+  const response = await fetch("/api/me", { headers: { Authorization: `Bearer ${token}` } });
+  if (!response.ok) return null;
+  const body = (await response.json()) as {
+    profile: { userId: string; email: string; displayName: string; role: "admin" | "coach" | "athlete" };
+  };
+  const { db } = await import("./db");
+  await db.accountProfiles.put({
+    id: "account-profile",
+    userId: body.profile.userId,
+    email: body.profile.email,
+    displayName: body.profile.displayName,
+    role: body.profile.role,
+    updatedAt: new Date().toISOString(),
+  });
+  return body.profile;
+}
+
 export async function pushSnapshotToCloud(payload: SyncPayload, consent = false) {
   const token = await getRemoteAccessToken();
   if (!token) throw new Error("Accedi con email per sincronizzare.");

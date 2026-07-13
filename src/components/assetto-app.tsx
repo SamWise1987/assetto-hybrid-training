@@ -1,17 +1,19 @@
 "use client";
 
 import { useLiveQuery } from "dexie-react-hooks";
-import { BarChart3, CalendarDays, Dumbbell, Home, Settings } from "lucide-react";
+import { BarChart3, CalendarDays, ClipboardList, Dumbbell, Home, Settings } from "lucide-react";
 import { db } from "@/lib/db";
+import { canManagePlans } from "@/lib/roles";
 import { useAppStore, type AppTab } from "@/lib/store";
 import { Onboarding } from "./onboarding";
 import { TodayScreen } from "./screens/today/index";
 import { CalendarScreen } from "./screens/calendar";
 import { ProgressScreen } from "./screens/progress";
 import { ExercisesScreen } from "./screens/exercises";
+import { CoachScreen } from "./screens/coach";
 import { SettingsScreen } from "./screens/settings";
 
-const tabs: { id: AppTab; label: string; icon: typeof Home }[] = [
+const baseTabs: { id: AppTab; label: string; icon: typeof Home }[] = [
   { id: "today", label: "Oggi", icon: Home },
   { id: "calendar", label: "Calendario", icon: CalendarDays },
   { id: "progress", label: "Progressi", icon: BarChart3 },
@@ -21,7 +23,11 @@ const tabs: { id: AppTab; label: string; icon: typeof Home }[] = [
 
 export function AssettoApp() {
   const profile = useLiveQuery(() => db.profiles.toCollection().first(), [], null);
+  const account = useLiveQuery(() => db.accountProfiles.toCollection().first());
   const { tab, setTab } = useAppStore();
+  const tabs = canManagePlans(account?.role)
+    ? [...baseTabs.slice(0, 4), { id: "coach" as const, label: "Coach", icon: ClipboardList }, baseTabs[4]]
+    : baseTabs;
 
   if (!profile) return <Onboarding />;
 
@@ -36,6 +42,7 @@ export function AssettoApp() {
         {tab === "calendar" ? <CalendarScreen /> : null}
         {tab === "progress" ? <ProgressScreen /> : null}
         {tab === "exercises" ? <ExercisesScreen /> : null}
+        {tab === "coach" ? <CoachScreen /> : null}
         {tab === "settings" ? <SettingsScreen /> : null}
       </main>
       <nav className="bottom-nav" aria-label="Navigazione principale">

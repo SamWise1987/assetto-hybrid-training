@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type AppTab = "today" | "calendar" | "progress" | "exercises" | "settings";
+export type AppTab = "today" | "calendar" | "progress" | "exercises" | "coach" | "settings";
 
 interface AppState {
   tab: AppTab;
