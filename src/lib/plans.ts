@@ -48,7 +48,24 @@ export function buildPlanFromTemplates(
       kind: template.kind,
       estimatedMinutes: template.estimatedMinutes,
       notes: template.notes,
+      prescriptions: template.kind === "strength" ? template.prescriptions : undefined,
+      runConfig:
+        template.kind === "run"
+          ? {
+              type: template.id === "main-run" ? "long-easy" : "easy",
+              durationMinutes: template.estimatedMinutes,
+              notes: template.notes,
+            }
+          : undefined,
     })),
+    runSessions: templates
+      .filter((template) => template.kind === "run")
+      .map((template) => ({
+        dayOfWeek: template.dayOfWeek,
+        type: (template.id === "main-run" ? "long-easy" : "easy") as import("./types").RunSession["type"],
+        durationMinutes: template.estimatedMinutes,
+        notes: template.notes,
+      })),
     createdBy,
     createdAt: now,
     updatedAt: now,
@@ -63,4 +80,8 @@ export async function applyPlanLocally(plan: TrainingPlan) {
   const { db } = await import("./db");
   await db.trainingPlans.put(plan);
   await db.templateCustomizations.bulkPut(planSessionsToCustomizations(plan));
+  if (plan.runSessions?.length) {
+    const { applyCoachRunPlans } = await import("./db");
+    await applyCoachRunPlans(plan.runSessions);
+  }
 }

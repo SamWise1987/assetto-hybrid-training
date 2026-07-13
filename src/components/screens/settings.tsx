@@ -29,6 +29,7 @@ import {
 } from "@/lib/remote-sync";
 import { TEMPLATES } from "@/lib/program";
 import { OpenAICoachAdapter } from "@/lib/sync-adapter";
+import { IntegrationsPanel } from "../integrations-panel";
 import { Button, Field, Surface } from "../ui";
 
 function download(name: string, content: string, type: string) {
@@ -275,6 +276,8 @@ export function SettingsScreen() {
           <p>Il servizio di accesso non è ancora configurato. Contatta l&apos;amministratore.</p>
         )}
       </Surface>
+
+      <IntegrationsPanel onStatus={setStatus} />
 
       <Surface>
         <div className="surface-heading">

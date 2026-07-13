@@ -6,6 +6,7 @@ import { BarChart3, CalendarDays, ClipboardList, Cloud, Dumbbell, Home, Settings
 import { db } from "@/lib/db";
 import { canManagePlans } from "@/lib/roles";
 import { getRemoteUserEmail, syncAccountProfile } from "@/lib/remote-sync";
+import { syncAssignedPlanFromCloud } from "@/lib/plan-sync";
 import { useAppStore, type AppTab } from "@/lib/store";
 import { Onboarding } from "./onboarding";
 import { TodayScreen } from "./screens/today/index";
@@ -32,16 +33,37 @@ const roleLabels = {
 export function AssettoApp() {
   const profile = useLiveQuery(() => db.profiles.toCollection().first(), [], null);
   const account = useLiveQuery(() => db.accountProfiles.toCollection().first());
-  const { tab, setTab } = useAppStore();
+  const { tab, setTab, planNotice, setPlanNotice, setIntegrationMessage } = useAppStore();
   const [remoteEmail, setRemoteEmail] = useState<string | null>(null);
   const tabs = canManagePlans(account?.role)
     ? [...baseTabs.slice(0, 4), { id: "coach" as const, label: "Coach", icon: ClipboardList }, baseTabs[4]]
     : baseTabs;
 
   useEffect(() => {
-    syncAccountProfile().catch(() => undefined);
-    getRemoteUserEmail().then(setRemoteEmail).catch(() => setRemoteEmail(null));
-  }, []);
+    const bootstrap = async () => {
+      await syncAccountProfile().catch(() => undefined);
+      const result = await syncAssignedPlanFromCloud().catch(() => null);
+      if (result?.isNew && result.plan) {
+        setPlanNotice({ planName: result.plan.name, assignedAt: result.assignment?.assignedAt ?? new Date().toISOString() });
+      }
+      const loggedEmail = await getRemoteUserEmail().catch(() => null);
+      setRemoteEmail(loggedEmail);
+    };
+    bootstrap().catch(() => undefined);
+
+    const params = new URLSearchParams(window.location.search);
+    const integration = params.get("integrations");
+    if (integration === "strava-connected") {
+      setIntegrationMessage("Strava collegato. Puoi importare le corse da Impostazioni.");
+    } else if (integration === "strava-denied") {
+      setIntegrationMessage("Collegamento Strava annullato.");
+    } else if (integration === "strava-error") {
+      setIntegrationMessage("Errore nel collegamento Strava. Riprova.");
+    }
+    if (integration) {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [setIntegrationMessage, setPlanNotice]);
 
   if (!profile) return <Onboarding />;
 
@@ -62,6 +84,12 @@ export function AssettoApp() {
         </span>
       </header>
       <main id="main-content" className="main-content">
+        {planNotice ? (
+          <div className="plan-notice" role="status">
+            <strong>Nuovo piano dal trainer: {planNotice.planName}</strong>
+            <button type="button" onClick={() => setPlanNotice(null)} aria-label="Chiudi avviso">×</button>
+          </div>
+        ) : null}
         {tab === "today" ? <TodayScreen /> : null}
         {tab === "calendar" ? <CalendarScreen /> : null}
         {tab === "progress" ? <ProgressScreen /> : null}

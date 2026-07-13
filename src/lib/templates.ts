@@ -20,7 +20,21 @@ export function resolveTemplates(
       }))
     : customizations;
 
-  return applyTemplateCustomizations(base, planCustomizations);
+  const customized = applyTemplateCustomizations(base, planCustomizations);
+
+  if (!activePlan) return customized;
+
+  const sessionOverrides = new Map(activePlan.sessions.map((session) => [session.templateId, session]));
+  return customized.map((template) => {
+    const session = sessionOverrides.get(template.id);
+    if (!session?.prescriptions?.length) return template;
+    return {
+      ...template,
+      prescriptions: session.prescriptions,
+      notes: session.notes ?? template.notes,
+      estimatedMinutes: session.estimatedMinutes ?? template.estimatedMinutes,
+    };
+  });
 }
 
 export function getTemplateForDay(

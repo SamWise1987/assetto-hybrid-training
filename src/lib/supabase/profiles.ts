@@ -89,11 +89,20 @@ export function mapRemotePlan(row: {
   created_at: string;
   updated_at: string;
 }): TrainingPlan {
+  const sessions = row.sessions as TrainingPlanSession[];
   return {
     id: row.id,
     name: row.name,
     description: row.description ?? undefined,
-    sessions: row.sessions as TrainingPlanSession[],
+    sessions,
+    runSessions: sessions
+      .filter((session) => session.runConfig)
+      .map((session) => ({
+        dayOfWeek: session.dayOfWeek,
+        type: session.runConfig!.type,
+        durationMinutes: session.runConfig!.durationMinutes,
+        notes: session.runConfig!.notes,
+      })),
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

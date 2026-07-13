@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { z } from "zod";
+import { Activity, Heart, MapPin } from "lucide-react";
 import { completeRunSession } from "@/lib/db";
 import type { RunPlan, RunSession } from "@/lib/types";
 import { Button, Field, ScaleControl, Surface } from "../../ui";
@@ -11,7 +12,16 @@ const runSchema = z.object({
   duration: z.coerce.number().min(5).max(240),
   distance: z.coerce.number().min(0).max(100),
   rpe: z.coerce.number().int().min(1).max(10),
+  avgHr: z.coerce.number().int().min(0).max(220).optional(),
+  maxHr: z.coerce.number().int().min(0).max(220).optional(),
 });
+
+const runTypeLabels: Record<RunSession["type"], string> = {
+  easy: "Facile",
+  "long-easy": "Lunga facile",
+  "controlled-quality": "Qualità controllata",
+  walk: "Passeggiata",
+};
 
 export function RunFlow({
   plan,
@@ -27,6 +37,8 @@ export function RunFlow({
     duration: plan?.durationMinutes ?? 40,
     distance: 5.5,
     rpe: 4,
+    avgHr: 0,
+    maxHr: 0,
     talkTest: "full-sentences" as RunSession["talkTest"],
     symptoms: 0,
   });
@@ -35,7 +47,11 @@ export function RunFlow({
   const [busy, setBusy] = useState(false);
 
   const save = async () => {
-    const result = runSchema.safeParse(form);
+    const result = runSchema.safeParse({
+      ...form,
+      avgHr: form.avgHr || undefined,
+      maxHr: form.maxHr || undefined,
+    });
     if (!result.success) {
       setError("Controlla durata, distanza e RPE.");
       return;
@@ -56,8 +72,11 @@ export function RunFlow({
           ).padStart(2, "0")}`
         : undefined,
       rpe: result.data.rpe,
+      averageHeartRate: result.data.avgHr || undefined,
+      maxHeartRate: result.data.maxHr || undefined,
       talkTest: form.talkTest,
       symptomsDuring: form.symptoms,
+      source: "manual",
     };
 
     const calibration = await completeRunSession(run);
@@ -75,9 +94,21 @@ export function RunFlow({
     <div className="flow-screen">
       <ScreenHeader
         title="Registra corsa"
-        caption={plan ? `Previsto: ${plan.durationMinutes} min` : "Inserisci quanto hai corso oggi."}
+        caption={plan ? `Previsto: ${plan.durationMinutes} min · ${runTypeLabels[plan.type]}` : "Inserisci quanto hai corso oggi."}
         onBack={onBack}
       />
+
+      {plan ? (
+        <Surface className="run-target-card">
+          <div className="surface-heading">
+            <div><p className="date-label">Obiettivo di oggi</p><h2>{plan.durationMinutes} min</h2></div>
+            <Activity />
+          </div>
+          <p>{runTypeLabels[plan.type]} · RPE target 3–4 · talk test: frasi complete</p>
+          {plan.notes?.map((note) => <p key={note}>{note}</p>)}
+        </Surface>
+      ) : null}
+
       <Surface className="run-form">
         <label className="field">
           <span>Tipo</span>
@@ -105,6 +136,22 @@ export function RunFlow({
             onChange={(e) => setForm({ ...form, distance: Number(e.target.value) })}
           />
         </div>
+        <div className="two-column">
+          <Field
+            label="FC media (opz.)"
+            type="number"
+            inputMode="numeric"
+            value={form.avgHr || ""}
+            onChange={(e) => setForm({ ...form, avgHr: Number(e.target.value) })}
+          />
+          <Field
+            label="FC max (opz.)"
+            type="number"
+            inputMode="numeric"
+            value={form.maxHr || ""}
+            onChange={(e) => setForm({ ...form, maxHr: Number(e.target.value) })}
+          />
+        </div>
         <ScaleControl label="RPE" value={form.rpe} min={1} max={10} onChange={(rpe) => setForm({ ...form, rpe })} />
         <label className="field">
           <span>Talk test</span>
@@ -124,12 +171,15 @@ export function RunFlow({
           max={10}
           onChange={(symptoms) => setForm({ ...form, symptoms })}
         />
+        <p className="quiet-note"><MapPin /> Puoi anche importare da Strava o file GPX in Impostazioni → Integrazioni.</p>
         {form.symptoms > 3 ? (
           <p className="form-error">Interrompi. Una camminata facile è ammessa solo se asintomatica.</p>
         ) : null}
         {error ? <p className="form-error">{error}</p> : null}
         {calibrationMessage ? <p className="success-message" role="status">{calibrationMessage}</p> : null}
-        <Button onClick={save} disabled={busy}>{busy ? "Calibro il sabato…" : "Salva corsa"}</Button>
+        <Button onClick={save} disabled={busy}>
+          <Heart /> {busy ? "Calibro il sabato…" : "Salva corsa"}
+        </Button>
       </Surface>
     </div>
   );
