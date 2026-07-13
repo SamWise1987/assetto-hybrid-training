@@ -1,0 +1,44 @@
+{
+  "name": "assetto-hybrid-training",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.8.0",
+    "@supabase/supabase-js": "^2.86.2",
+    "date-fns": "^4.1.0",
+    "dexie": "4.4.4",
+    "dexie-react-hooks": "4.2.0",
+    "lucide-react": "0.468.0",
+    "next": "16.2.10",
+    "openai": "6.22.0",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "recharts": "3.9.2",
+    "zod": "4.4.3",
+    "zustand": "5.0.14"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1",
+    "@rolldown/binding-darwin-arm64": "1.1.5",
+    "@tailwindcss/postcss": "4.3.2",
+    "@types/node": "22.15.3",
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
+    "eslint": "9.39.1",
+    "eslint-config-next": "16.2.10",
+    "fake-indexeddb": "6.2.4",
+    "tailwindcss": "4.3.2",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10"
+  }
+}
