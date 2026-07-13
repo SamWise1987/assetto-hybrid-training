@@ -168,6 +168,18 @@ function Warmup({ onBack, onContinue }: { onBack: () => void; onContinue: () => 
   );
 }
 
+function formFromPrescription(prescription: WorkoutTemplate["prescriptions"][number]) {
+  return {
+    weight: prescription.targetLoadKg ?? 16,
+    dumbbells: 2,
+    reps: prescription.repRange?.[0] ?? 10,
+    rir: 3,
+    shoulderPain: 0,
+    cervicalPain: 0,
+    technique: "stable" as SetLog["technique"],
+  };
+}
+
 function Workout({
   template,
   readinessId,
@@ -179,15 +191,7 @@ function Workout({
 }) {
   const [exerciseIndex, setExerciseIndex] = useState(0);
   const [logs, setLogs] = useState<SetLog[]>([]);
-  const [form, setForm] = useState({
-    weight: 16,
-    dumbbells: 2,
-    reps: 10,
-    rir: 3,
-    shoulderPain: 0,
-    cervicalPain: 0,
-    technique: "stable" as SetLog["technique"],
-  });
+  const [form, setForm] = useState(() => formFromPrescription(template.prescriptions[0]));
   const [error, setError] = useState("");
   const [restLeft, setRestLeft] = useState<number | null>(null);
   const active = template.prescriptions[exerciseIndex];
@@ -201,14 +205,12 @@ function Workout({
     return () => window.clearTimeout(timer);
   }, [restLeft]);
 
-  useEffect(() => {
-    setForm((current) => ({
-      ...current,
-      weight: active.targetLoadKg ?? current.weight,
-      reps: active.repRange?.[0] ?? current.reps,
-    }));
+  const goToExercise = (index: number) => {
+    setExerciseIndex(index);
+    setForm(formFromPrescription(template.prescriptions[index]));
     setRestLeft(null);
-  }, [active.id, active.repRange, active.targetLoadKg]);
+    setError("");
+  };
 
   const saveSet = () => {
     const result = setSchema.safeParse(form);
@@ -309,9 +311,9 @@ function Workout({
         </div>
       ) : null}
       <div className="exercise-nav">
-        <Button variant="secondary" disabled={exerciseIndex === 0} onClick={() => setExerciseIndex(exerciseIndex - 1)}>Precedente</Button>
+        <Button variant="secondary" disabled={exerciseIndex === 0} onClick={() => goToExercise(exerciseIndex - 1)}>Precedente</Button>
         {exerciseIndex < template.prescriptions.length - 1 ? (
-          <Button disabled={!activeLogs.length} onClick={() => setExerciseIndex(exerciseIndex + 1)}>Esercizio successivo</Button>
+          <Button disabled={!activeLogs.length} onClick={() => goToExercise(exerciseIndex + 1)}>Esercizio successivo</Button>
         ) : (
           <Button disabled={!logs.length} onClick={async () => { await saveDraft(); onStop(); }}>Check-out</Button>
         )}

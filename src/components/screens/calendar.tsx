@@ -163,7 +163,7 @@ export function CalendarScreen() {
                 if (view === "month") setCursor(startOfMonth(day));
               }}
               aria-label={`${format(day, "EEEE d MMMM", { locale: it })}${template ? `, ${template.name}` : ""}`}
-              aria-pressed={isSameDay(day, selected)}
+              aria-current={isSameDay(day, selected) ? "date" : undefined}
             >
               <span className="calendar-day-number">{format(day, "d")}</span>
               {workout ? <span className="calendar-day-dot" aria-hidden="true" /> : null}

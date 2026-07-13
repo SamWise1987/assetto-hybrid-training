@@ -65,20 +65,15 @@ export function SettingsScreen() {
   const latestReview = useLiveQuery(() => db.coachReviews.orderBy("date").last());
   const blockWeek = useLiveQuery(() => getActiveBlockWeek(), [], 4);
   const syncEnabled = cloudSyncAvailable();
-  const [profileName, setProfileName] = useState("");
-  const [greeting, setGreeting] = useState<PreferredGreeting>("neutral");
+  const [profileDraft, setProfileDraft] = useState<{ name: string; greeting: PreferredGreeting } | null>(null);
 
   useEffect(() => {
     getRemoteUserEmail().then(setRemoteEmail).catch(() => setRemoteEmail(null));
     syncAccountProfile().catch(() => undefined);
   }, [status]);
 
-  useEffect(() => {
-    if (profile) {
-      setProfileName(profile.name);
-      setGreeting(profile.preferredGreeting ?? "neutral");
-    }
-  }, [profile]);
+  const profileName = profileDraft?.name ?? profile?.name ?? "";
+  const greeting = profileDraft?.greeting ?? profile?.preferredGreeting ?? "neutral";
 
   const saveProfile = async () => {
     if (!profile) return;
@@ -88,6 +83,7 @@ export function SettingsScreen() {
       name: nextName,
       preferredGreeting: greeting,
     });
+    setProfileDraft({ name: nextName, greeting });
     if (account && syncEnabled) {
       try {
         const token = await getRemoteAccessToken();
@@ -271,10 +267,17 @@ export function SettingsScreen() {
           <User />
         </div>
         <p>Questo nome appare in alto nell&apos;app e nel messaggio di benvenuto.</p>
-        <Field label="Nome o nickname" value={profileName} onChange={(e) => setProfileName(e.target.value)} />
+        <Field
+          label="Nome o nickname"
+          value={profileName}
+          onChange={(e) => setProfileDraft({ name: e.target.value, greeting })}
+        />
         <label className="field">
           <span>Forma di saluto</span>
-          <select value={greeting} onChange={(e) => setGreeting(e.target.value as PreferredGreeting)}>
+          <select
+            value={greeting}
+            onChange={(e) => setProfileDraft({ name: profileName, greeting: e.target.value as PreferredGreeting })}
+          >
             <option value="neutral">Benvenuto/a</option>
             <option value="benvenuto">Benvenuto</option>
             <option value="benvenuta">Benvenuta</option>

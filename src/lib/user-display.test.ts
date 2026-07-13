@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { RUNNING_EXERCISES } from "@/data/running-exercises";
-import { getAllExercises, getExercisePatterns, getRunningExercises } from "@/lib/exercise-library";
-import { getDisplayName, getWelcomeGreeting } from "@/lib/user-display";
-import { TEMPLATES } from "@/lib/program";
+import { getAllExercises, getExercisePatterns, getRunningExercises } from "./exercise-library";
+import { getDisplayName, getWelcomeGreeting } from "./user-display";
+import { TEMPLATES } from "./program";
 
 describe("user display", () => {
   it("prefers account displayName then profile name", () => {
@@ -20,8 +19,9 @@ describe("user display", () => {
 
 describe("running exercise dataset", () => {
   it("includes a dedicated corsa pattern set", () => {
-    expect(RUNNING_EXERCISES.length).toBeGreaterThanOrEqual(12);
-    expect(getRunningExercises().every((exercise) => exercise.pattern === "corsa")).toBe(true);
+    const running = getRunningExercises();
+    expect(running.length).toBeGreaterThanOrEqual(12);
+    expect(running.every((exercise) => exercise.pattern === "corsa")).toBe(true);
     expect(getExercisePatterns()).toContain("corsa");
     expect(getAllExercises().some((exercise) => exercise.id === "run-easy")).toBe(true);
   });

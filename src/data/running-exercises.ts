@@ -1,4 +1,4 @@
-import type { ExerciseDefinition } from "@/lib/types";
+import type { ExerciseDefinition } from "../lib/types";
 
 /** Dataset dedicato alla corsa: usato in libreria trainer e come riferimento coaching. */
 export const RUNNING_EXERCISES: ExerciseDefinition[] = [
