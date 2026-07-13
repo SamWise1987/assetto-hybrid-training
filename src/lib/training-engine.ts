@@ -135,10 +135,11 @@ export function getTemplateForDayWithOverrides(
   activePrescriptions: readonly ActivePrescription[],
   templates: readonly import("./types").WorkoutTemplate[],
 ) {
-  const template = templates.find((entry) => entry.dayOfWeek === dayOfWeek) ?? templates[0];
+  const source = templates.length > 0 ? templates : TEMPLATES;
+  const template = source.find((entry) => entry.dayOfWeek === dayOfWeek) ?? source[0];
   return {
     ...template,
-    prescriptions: mergeTemplatePrescriptions(template.id, activePrescriptions, templates),
+    prescriptions: mergeTemplatePrescriptions(template.id, activePrescriptions, source),
   };
 }
 

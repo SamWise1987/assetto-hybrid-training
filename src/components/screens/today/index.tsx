@@ -5,7 +5,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { ArrowRight, Clock3, Footprints, Sparkles } from "lucide-react";
 import { adjustForReadiness } from "@/lib/autoregulation";
 import { db, getActiveBlockWeek, getResolvedTemplates, getTodayRunPlan } from "@/lib/db";
-import { EXERCISES, getCycleTargets } from "@/lib/program";
+import { EXERCISES, getCycleTargets, TEMPLATES } from "@/lib/program";
 import { getTemplateForDayWithOverrides } from "@/lib/training-engine";
 import type { DailyReadiness } from "@/lib/types";
 import { useAppStore } from "@/lib/store";
@@ -34,7 +34,7 @@ export const makeReadiness = (): DailyReadiness => ({
 
 export function TodayScreen() {
   const activePrescriptions = useLiveQuery(() => db.activePrescriptions.toArray(), [], []) ?? [];
-  const resolvedTemplates = useLiveQuery(() => getResolvedTemplates(), [], []) ?? [];
+  const resolvedTemplates = useLiveQuery(() => getResolvedTemplates(), [], TEMPLATES) ?? TEMPLATES;
   const latestDecision = useLiveQuery(() => db.progressionDecisions.orderBy("date").last());
   const latestRunCalibration = useLiveQuery(() => db.runCalibrationDecisions.orderBy("date").last());
   const runPlan = useLiveQuery(() => getTodayRunPlan(today), [isoToday]);

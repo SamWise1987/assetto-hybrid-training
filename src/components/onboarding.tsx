@@ -12,9 +12,14 @@ export function Onboarding() {
 
   const createPlan = async () => {
     setBusy(true);
-    await seedDemoData();
-    window.scrollTo({ top: 0, behavior: "auto" });
-    setBusy(false);
+    try {
+      await seedDemoData();
+      window.scrollTo({ top: 0, behavior: "auto" });
+    } catch (error) {
+      console.error("Creazione piano fallita", error);
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
