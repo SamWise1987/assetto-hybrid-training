@@ -84,7 +84,7 @@ export function mapRemotePlan(row: {
   id: string;
   name: string;
   description: string | null;
-  sessions: TrainingPlanSession[];
+  sessions: TrainingPlanSession[] | unknown;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -93,7 +93,7 @@ export function mapRemotePlan(row: {
     id: row.id,
     name: row.name,
     description: row.description ?? undefined,
-    sessions: row.sessions,
+    sessions: row.sessions as TrainingPlanSession[],
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

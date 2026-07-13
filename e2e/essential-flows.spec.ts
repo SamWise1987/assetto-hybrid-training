@@ -4,7 +4,7 @@ async function onboard(page: Page) {
   await page.goto("/");
   await page.locator('[data-hydrated="true"]').waitFor();
   if (await page.getByRole("heading", { name: /Il tuo piano/ }).isVisible().catch(() => false)) {
-    await page.getByLabel(/Ho compreso che Assetto/).check();
+    await page.getByLabel(/Ho compreso che RobertaFunctional/).check();
     await page.getByRole("button", { name: "Crea il mio piano" }).click();
   }
   await expect(page.getByRole("heading", { name: "Forza A" })).toBeVisible();
@@ -14,7 +14,7 @@ test("onboarding e creazione del piano", async ({ page }) => {
   await page.goto("/");
   await page.locator('[data-hydrated="true"]').waitFor();
   await expect(page.getByRole("heading", { name: /Il tuo piano si adatta/ })).toBeVisible();
-  await page.getByLabel(/Ho compreso che Assetto/).check();
+  await page.getByLabel(/Ho compreso che RobertaFunctional/).check();
   await page.getByRole("button", { name: "Crea il mio piano" }).click();
   await expect(page.getByRole("heading", { name: "Forza A" })).toBeVisible();
 });
@@ -59,5 +59,5 @@ test("esportazione JSON", async ({ page }) => {
   await page.getByRole("button", { name: "Impostazioni" }).click();
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: /Esporta database JSON/ }).click();
-  expect((await download).suggestedFilename()).toMatch(/assetto-backup-.*\.json/);
+  expect((await download).suggestedFilename()).toMatch(/roberta-functional-backup-.*\.json/);
 });

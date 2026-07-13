@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Assetto · Allenamento ibrido",
-    short_name: "Assetto",
+    name: "RobertaFunctional · Allenamento ibrido",
+    short_name: "RobertaFunctional",
     description: "Programma di forza e corsa local-first con autoregolazione trasparente.",
     start_url: "/",
     display: "standalone",

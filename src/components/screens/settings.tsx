@@ -51,12 +51,12 @@ export function SettingsScreen() {
   }, [status]);
 
   const exportJson = async () => {
-    download(`assetto-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(await exportDatabase(), null, 2), "application/json");
+    download(`roberta-functional-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(await exportDatabase(), null, 2), "application/json");
     setStatus("Backup JSON esportato.");
   };
 
   const exportCsv = async () => {
-    download("assetto-storico.csv", await exportHistoryCsv(), "text/csv");
+    download("roberta-functional-storico.csv", await exportHistoryCsv(), "text/csv");
     setStatus("Storico CSV esportato.");
   };
 
@@ -278,7 +278,7 @@ export function SettingsScreen() {
           <div><p className="date-label">Limiti clinici</p><h2>Sicurezza</h2></div>
           <Shield />
         </div>
-        <p>Assetto non formula diagnosi né protocolli riabilitativi. Sintomi neurologici producono uno stop.</p>
+        <p>RobertaFunctional non formula diagnosi né protocolli riabilitativi. Sintomi neurologici producono uno stop.</p>
       </Surface>
 
       <Surface className="danger-zone">

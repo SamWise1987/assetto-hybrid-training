@@ -34,7 +34,7 @@ export function AssettoApp() {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <span className="wordmark">Assetto</span>
+        <span className="wordmark">RobertaFunctional</span>
         <span className="local-status"><Home size={17} aria-hidden="true" /> Locale <i /></span>
       </header>
       <main id="main-content" className="main-content">

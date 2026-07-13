@@ -2,6 +2,7 @@ import { z } from "zod";
 import { jsonError, jsonOk } from "@/lib/api-utils";
 import { defaultTrainingPlan } from "@/lib/plans";
 import { mapRemotePlan, requireStaff, staffClient } from "@/lib/supabase/profiles";
+import type { Database } from "@/lib/supabase/client";
 import type { TrainingPlanSession } from "@/lib/types";
 
 const createSchema = z.object({
@@ -53,7 +54,7 @@ export async function POST(request: Request) {
     .insert({
       name: parsed.data.name,
       description: parsed.data.description ?? fallback.description,
-      sessions,
+      sessions: sessions as unknown as Database["public"]["Tables"]["training_plans"]["Insert"]["sessions"],
       created_by: staff.userId,
     })
     .select("*")

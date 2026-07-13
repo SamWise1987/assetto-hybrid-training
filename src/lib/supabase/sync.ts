@@ -17,7 +17,7 @@ export async function upsertSnapshot(
       user_id: input.userId,
       device_id: input.deviceId,
       schema_version: input.payload.schemaVersion,
-      payload: input.payload,
+      payload: input.payload as unknown as Database["public"]["Tables"]["sync_snapshots"]["Insert"]["payload"],
       exported_at: input.payload.exportedAt,
     },
     { onConflict: "user_id,device_id" },
@@ -42,7 +42,7 @@ export async function fetchLatestSnapshot(
 
   const { data, error } = await query.maybeSingle();
   if (error) throw new Error(error.message);
-  return data?.payload as SyncPayload | null;
+  return (data?.payload as SyncPayload | undefined) ?? null;
 }
 
 export async function recordSyncConsent(

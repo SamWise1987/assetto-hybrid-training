@@ -3,7 +3,7 @@ import { jsonOk } from "@/lib/api-utils";
 
 export async function GET() {
   return jsonOk({
-    service: "assetto-backend",
+    service: "roberta-functional-backend",
     status: "ok",
     ...backendStatus(),
     timestamp: new Date().toISOString(),

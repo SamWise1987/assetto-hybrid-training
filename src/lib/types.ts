@@ -269,5 +269,5 @@ export interface CoachReview {
   strengthNotes: string[];
   runNotes: string[];
   nextWeekFocus: string[];
-  source: "deterministic";
+  source: "openai" | "deterministic";
 }

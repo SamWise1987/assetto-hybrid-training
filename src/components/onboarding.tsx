@@ -19,7 +19,7 @@ export function Onboarding() {
 
   return (
     <main id="main-content" className="onboarding-shell" data-hydrated={hydrated}>
-      <header className="brand-row"><span className="wordmark">Assetto</span><span className="local-status"><LockKeyhole size={16} /> Locale</span></header>
+      <header className="brand-row"><span className="wordmark">RobertaFunctional</span><span className="local-status"><LockKeyhole size={16} /> Locale</span></header>
       <section className="onboarding-hero">
         <p className="date-label">Forza + corsa, senza rumore</p>
         <h1>Il tuo piano si adatta.<br />Le regole restano visibili.</h1>
@@ -37,7 +37,7 @@ export function Onboarding() {
           checked={accepted}
           onChange={(event) => setAccepted(event.target.checked)}
         />
-        <span>Ho compreso che Assetto non sostituisce medico, fisiatra o fisioterapista.</span>
+        <span>Ho compreso che RobertaFunctional non sostituisce medico, fisiatra o fisioterapista.</span>
       </label>
       <Button disabled={!hydrated || !accepted || busy} onClick={createPlan}>{busy ? "Creo il piano…" : "Crea il mio piano"}</Button>
       <p className="quiet-note">Il seed include tre settimane demo realistiche per mostrare progressioni e grafici.</p>

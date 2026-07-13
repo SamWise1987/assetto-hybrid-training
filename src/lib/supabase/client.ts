@@ -1,4 +1,19 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { TrainingPlanSession } from "@/lib/types";
+
+type UserRole = "admin" | "coach" | "athlete";
+type CoachReviewSource = "openai" | "deterministic";
+type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
+
+export type RemoteTrainingPlanRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  sessions: TrainingPlanSession[];
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+};
 
 export type Database = {
   public: {
@@ -9,7 +24,7 @@ export type Database = {
           user_id: string;
           device_id: string;
           schema_version: number;
-          payload: Record<string, unknown>;
+          payload: Json;
           exported_at: string;
           updated_at: string;
         };
@@ -18,11 +33,12 @@ export type Database = {
           user_id: string;
           device_id: string;
           schema_version?: number;
-          payload: Record<string, unknown>;
+          payload: Json;
           exported_at?: string;
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["sync_snapshots"]["Insert"]>;
+        Relationships: [];
       };
       coach_reviews: {
         Row: {
@@ -33,9 +49,22 @@ export type Database = {
           strength_notes: string[];
           run_notes: string[];
           next_week_focus: string[];
-          source: "openai" | "deterministic";
+          source: CoachReviewSource;
           created_at: string;
         };
+        Insert: {
+          id?: string;
+          user_id: string;
+          week: number;
+          summary: string;
+          strength_notes?: string[];
+          run_notes?: string[];
+          next_week_focus?: string[];
+          source: CoachReviewSource;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["coach_reviews"]["Insert"]>;
+        Relationships: [];
       };
       sync_consents: {
         Row: {
@@ -43,13 +72,20 @@ export type Database = {
           consented_at: string;
           device_id: string;
         };
+        Insert: {
+          user_id: string;
+          consented_at?: string;
+          device_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["sync_consents"]["Insert"]>;
+        Relationships: [];
       };
       user_roles: {
         Row: {
           user_id: string;
           email: string;
           display_name: string;
-          role: "admin" | "coach" | "athlete";
+          role: UserRole;
           created_at: string;
           updated_at: string;
         };
@@ -57,16 +93,17 @@ export type Database = {
           user_id: string;
           email: string;
           display_name?: string;
-          role?: "admin" | "coach" | "athlete";
+          role?: UserRole;
         };
         Update: Partial<Database["public"]["Tables"]["user_roles"]["Insert"]>;
+        Relationships: [];
       };
       training_plans: {
         Row: {
           id: string;
           name: string;
           description: string | null;
-          sessions: import("@/lib/types").TrainingPlanSession[];
+          sessions: Json;
           created_by: string;
           created_at: string;
           updated_at: string;
@@ -75,10 +112,11 @@ export type Database = {
           id?: string;
           name: string;
           description?: string | null;
-          sessions: import("@/lib/types").TrainingPlanSession[];
+          sessions: Json;
           created_by: string;
         };
         Update: Partial<Database["public"]["Tables"]["training_plans"]["Insert"]>;
+        Relationships: [];
       };
       plan_assignments: {
         Row: {
@@ -99,7 +137,14 @@ export type Database = {
           active?: boolean;
         };
         Update: Partial<Database["public"]["Tables"]["plan_assignments"]["Insert"]>;
+        Relationships: [];
       };
+    };
+    Views: {
+      [_ in never]: never;
+    };
+    Functions: {
+      [_ in never]: never;
     };
   };
 };

@@ -1,4 +1,4 @@
-const CACHE = "assetto-shell-v1";
+const CACHE = "roberta-functional-shell-v1";
 const APP_SHELL = ["/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {

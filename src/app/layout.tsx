@@ -3,10 +3,10 @@ import "./globals.css";
 import { PwaRegister } from "@/components/pwa-register";
 
 export const metadata: Metadata = {
-  title: "Assetto · Allenamento ibrido",
+  title: "RobertaFunctional · Allenamento ibrido",
   description: "Programma locale e trasparente per forza e corsa.",
-  applicationName: "Assetto",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Assetto" },
+  applicationName: "RobertaFunctional",
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "RobertaFunctional" },
 };
 
 export const viewport: Viewport = {

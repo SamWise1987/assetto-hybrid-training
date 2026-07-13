@@ -294,7 +294,7 @@ export async function completeRunSession(run: RunSession) {
 export async function exportDatabase() {
   const result: Record<string, unknown[]> = {};
   for (const table of db.tables) result[table.name] = await table.toArray();
-  return { app: "Assetto", schemaVersion: 2, exportedAt: new Date().toISOString(), tables: result };
+  return { app: "RobertaFunctional", schemaVersion: 2, exportedAt: new Date().toISOString(), tables: result };
 }
 
 export async function importDatabase(payload: unknown) {

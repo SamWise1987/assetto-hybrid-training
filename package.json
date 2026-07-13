@@ -1,5 +1,5 @@
 {
-  "name": "assetto-hybrid-training",
+  "name": "roberta-functional",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -29,7 +29,6 @@
   },
   "devDependencies": {
     "@playwright/test": "1.61.1",
-    "@rolldown/binding-darwin-arm64": "1.1.5",
     "@tailwindcss/postcss": "4.3.2",
     "@types/node": "22.15.3",
     "@types/react": "19.2.2",
