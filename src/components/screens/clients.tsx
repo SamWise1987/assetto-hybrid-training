@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Activity, MailPlus, RefreshCw, UserRound, Users } from "lucide-react";
 import { getRemoteAccessToken } from "@/lib/remote-sync";
+import type { UserRole } from "@/lib/types";
 import { Button, EmptyState, Field, Surface } from "../ui";
 
 const DAYS = ["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"];
@@ -18,7 +19,7 @@ interface ClientSummary {
   health: { status: string; platform: string; last_successful_sync_at: string | null } | null;
 }
 
-interface StaffUser { user_id: string; email: string; display_name: string; role: "admin" | "coach" | "athlete" }
+interface StaffUser { user_id: string; email: string; display_name: string; role: UserRole }
 interface AuditEvent { id: string; action: string; entity_type: string; created_at: string }
 interface ErrorEventSummary { id: string; subsystem: string; severity: string; message: string; platform: string; created_at: string }
 interface ClientDetail {
@@ -39,6 +40,8 @@ export function ClientsScreen({ admin = false }: { admin?: boolean }) {
   const [staffUsers, setStaffUsers] = useState<StaffUser[]>([]);
   const [trainerEmail, setTrainerEmail] = useState("");
   const [trainerName, setTrainerName] = useState("");
+  const [roleEmail, setRoleEmail] = useState("");
+  const [roleValue, setRoleValue] = useState<UserRole>("coach");
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [errorEvents, setErrorEvents] = useState<ErrorEventSummary[]>([]);
   const [selectedClient, setSelectedClient] = useState<ClientSummary | null>(null);
@@ -114,6 +117,19 @@ export function ClientsScreen({ admin = false }: { admin?: boolean }) {
     if (response.ok) { setStatus("Cliente riassegnato."); await load(); }
   };
 
+  const updateRole = async () => {
+    if (!roleEmail.includes("@")) return;
+    setBusy(true); setStatus("");
+    try {
+      const token = await getRemoteAccessToken(); if (!token) throw new Error("Accesso richiesto.");
+      const response = await fetch("/api/admin/roles", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ email: roleEmail, role: roleValue }) });
+      const body = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(body.error ?? "Aggiornamento ruolo non riuscito.");
+      setRoleEmail(""); setStatus(`Ruolo ${roleValue} aggiornato.`); await load();
+    } catch (error) { setStatus(error instanceof Error ? error.message : "Aggiornamento ruolo non riuscito."); }
+    finally { setBusy(false); }
+  };
+
   const openClient = async (client: ClientSummary) => {
     if (!client.account?.user_id) return;
     setSelectedClient(client); setClientDetail(null);
@@ -132,6 +148,7 @@ export function ClientsScreen({ admin = false }: { admin?: boolean }) {
         <div><strong>{clients.filter((client) => client.health?.status === "success").length}</strong><span>Health sincronizzato</span></div>
       </div>
       {admin ? <Surface><div className="surface-heading"><div><p className="date-label">Amministrazione</p><h2>Invita un trainer</h2></div><MailPlus /></div><div className="dashboard-form"><Field label="Nome trainer" value={trainerName} onChange={(event) => setTrainerName(event.target.value)} /><Field label="Email trainer" type="email" value={trainerEmail} onChange={(event) => setTrainerEmail(event.target.value)} /></div><Button onClick={inviteTrainer} disabled={busy || !trainerEmail.includes("@")}>Invita trainer</Button><p className="supporting-copy">{staffUsers.filter((user) => user.role === "coach").length} trainer registrati nella struttura.</p></Surface> : null}
+      {admin ? <Surface><div className="surface-heading"><div><p className="date-label">Permessi account</p><h2>Gestione ruoli</h2></div><Users /></div><div className="dashboard-form"><Field label="Email utente" type="email" value={roleEmail} onChange={(event) => setRoleEmail(event.target.value)} /><label className="field"><span>Ruolo</span><select value={roleValue} onChange={(event) => setRoleValue(event.target.value as UserRole)}><option value="coach">Trainer</option><option value="athlete">Cliente</option><option value="admin">Admin</option></select></label></div><Button variant="secondary" onClick={updateRole} disabled={busy || !roleEmail.includes("@")}>Aggiorna ruolo</Button><p className="supporting-copy">Gli inviti restano separati: qui modifichi soltanto account già registrati.</p></Surface> : null}
       <Surface>
         <div className="surface-heading"><div><p className="date-label">Nuovo cliente</p><h2>Invia un invito</h2></div><MailPlus /></div>
         <div className="dashboard-form"><Field label="Nome" value={name} onChange={(event) => setName(event.target.value)} /><Field label="Email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></div>
