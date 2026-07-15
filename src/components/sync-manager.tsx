@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/lib/db";
 import { registerOnlineSync, retryFailedSync } from "@/lib/normalized-sync";
+import { syncBannerState } from "@/lib/sync-status";
 
 export function SyncManager() {
   const pending = useLiveQuery(() => db.syncQueue.count()) ?? 0;
   const failed = useLiveQuery(() => db.syncQueue.filter((item) => item.attemptCount > 0).count()) ?? 0;
+  const conflicts = useLiveQuery(() => db.syncQueue.filter((item) => item.lastError?.startsWith("Conflitto:") === true).count()) ?? 0;
   const [online, setOnline] = useState(() => typeof navigator === "undefined" || navigator.onLine);
   useEffect(() => {
     const unregisterSync = registerOnlineSync();
@@ -22,8 +24,9 @@ export function SyncManager() {
     };
   }, []);
   if (online && !pending) return null;
-  return <div className={`sync-banner ${failed ? "has-error" : ""}`} role="status">
-    <span>{!online ? `Modalità offline · ${pending} modifica${pending === 1 ? "" : "he"} salvata${pending === 1 ? "" : "e"} sul dispositivo` : failed ? `${failed} modifica${failed === 1 ? " non sincronizzata" : "he non sincronizzate"}. I dati locali sono al sicuro.` : `${pending} modifica${pending === 1 ? "" : "he"} in sincronizzazione`}</span>
-    {online && failed ? <button type="button" onClick={() => retryFailedSync().catch(() => undefined)}>Riprova</button> : null}
+  const banner = syncBannerState({ online, pending, failed, conflicts });
+  return <div className={`sync-banner ${banner.tone === "error" ? "has-error" : ""}`} role={banner.tone === "error" ? "alert" : "status"}>
+    <span>{banner.message}</span>
+    {banner.actionLabel ? <button type="button" onClick={() => retryFailedSync().catch(() => undefined)}>{banner.actionLabel}</button> : null}
   </div>;
 }
