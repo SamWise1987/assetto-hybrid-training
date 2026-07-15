@@ -25,6 +25,7 @@ test("cliente mantiene piano, Health, analisi e inbox anche dopo reload offline"
   await expect.poll(() => page.evaluate(async () => (await caches.keys()).includes("roberta-functional-shell-v5"))).toBe(true);
   await page.reload();
   await expect(page.getByText("Alex", { exact: true }).first()).toBeVisible();
+  await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker?.controller))).toBe(true);
   await context.setOffline(true);
   await page.reload();
   await expect(page.getByText("Alex", { exact: true }).first()).toBeVisible();
