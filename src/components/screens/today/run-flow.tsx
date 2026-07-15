@@ -7,6 +7,7 @@ import { completeRunSession } from "@/lib/db";
 import type { RunPlan, RunSession } from "@/lib/types";
 import { Button, Field, ScaleControl, Surface } from "../../ui";
 import { ScreenHeader } from "./shared-panels";
+import { currentPlatform } from "@/lib/platform";
 
 const runSchema = z.object({
   duration: z.coerce.number().min(5).max(240),
@@ -77,6 +78,8 @@ export function RunFlow({
       talkTest: form.talkTest,
       symptomsDuring: form.symptoms,
       source: "manual",
+      platform: currentPlatform(),
+      subjectiveDataAvailable: true,
     };
 
     const calibration = await completeRunSession(run);
@@ -108,6 +111,8 @@ export function RunFlow({
           {plan.notes?.map((note) => <p key={note}>{note}</p>)}
         </Surface>
       ) : null}
+
+      {plan?.segments?.length ? <Surface className="run-segment-list"><div className="surface-heading"><div><p className="date-label">Player workout</p><h2>Sequenza di oggi</h2></div><Activity /></div>{plan.segments.map((segment, index) => <article key={segment.id}><strong>{index + 1}. {segment.phase}</strong><span>{segment.repeats ? `${segment.repeats}× ` : ""}{segment.distanceMeters ? `${segment.distanceMeters} m` : `${Math.round((segment.durationSeconds ?? 0) / 60)} min`} · {segment.instructions}</span></article>)}</Surface> : null}
 
       <Surface className="run-form">
         <label className="field">

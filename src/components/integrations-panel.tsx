@@ -8,6 +8,7 @@ import {
   getNativeHealthAvailability,
   importNativeWorkouts,
   isNativeShell,
+  recordNativeHealthFailure,
   type NativeHealthAvailability,
 } from "@/lib/native-health";
 import { getRemoteAccessToken } from "@/lib/remote-sync";
@@ -53,10 +54,11 @@ export function IntegrationsPanel({ onStatus }: { onStatus: (message: string) =>
       const result = await importNativeWorkouts(30);
       report(
         result.imported
-          ? `${result.imported} corse importate da ${health?.platform === "ios" ? "Apple Health" : "Health Connect"}${result.skipped ? ` (${result.skipped} già presenti)` : ""}.`
-          : "Nessuna nuova corsa/camminata da importare.",
+          ? `${result.imported} attività importate da ${health?.platform === "ios" ? "Apple Health" : "Health Connect"}: ${result.importedRuns} corsa/camminata e ${result.importedStrength} forza${result.skipped ? ` (${result.skipped} già presenti)` : ""}.`
+          : "Nessuna nuova attività di corsa, camminata o forza da importare.",
       );
     } catch (error) {
+      await recordNativeHealthFailure(error);
       report(error instanceof Error ? error.message : "Import nativo fallito.");
     } finally {
       setBusy(false);
@@ -153,7 +155,7 @@ export function IntegrationsPanel({ onStatus }: { onStatus: (message: string) =>
       <div className="integration-card">
         <strong>Apple Health / Health Connect</strong>
         <p>
-          Importa allenamenti di corsa e camminata dagli ultimi 30 giorni. Funziona con Apple Watch,
+          Importa allenamenti di corsa, camminata e forza dagli ultimi 30 giorni. Funziona con Apple Watch,
           e con Garmin / Huawei se l&apos;utente abilita la sincronizzazione verso Apple Salute o Health Connect.
         </p>
         {nativeReady ? (

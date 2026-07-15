@@ -6,13 +6,14 @@ import { ArrowLeft, ArrowRight, Check, Info, Lightbulb, RotateCcw, ShieldAlert, 
 import type { CSSProperties } from "react";
 import { z } from "zod";
 import type { DailyAdjustment } from "@/lib/autoregulation";
-import { completeWorkoutSession, db } from "@/lib/db";
+import { completeWorkoutSession, db, enqueueSync } from "@/lib/db";
 import { getExerciseById } from "@/lib/exercise-library";
 import { EXERCISES } from "@/lib/program";
 import type { DailyReadiness, SetLog, WorkoutSession, WorkoutTemplate } from "@/lib/types";
 import { Button, Field, ScaleControl, Toggle } from "../../ui";
 import { adjustForReadiness } from "@/lib/autoregulation";
 import { formatPreciseDuration } from "@/lib/duration";
+import { currentPlatform } from "@/lib/platform";
 
 const isoToday = new Date().toISOString().slice(0, 10);
 
@@ -54,6 +55,7 @@ export function WorkoutFlow({
         onBack={() => setMode("overview")}
         onContinue={async () => {
           await db.readiness.put(readiness);
+          await enqueueSync({ entity: "readiness", entityId: readiness.id, operation: "upsert", payload: readiness as unknown as Record<string, unknown> });
           if (!sessionStartedAt) onSessionStart();
           setMode(adjustment.hardStopUpperBody ? "stop" : "warmup");
         }}
@@ -333,6 +335,8 @@ function Workout({
       durationPrecise: formatPreciseDuration(elapsedMs),
       modifiedExerciseIds: [],
       skippedExerciseIds: [],
+      source: "app",
+      platform: currentPlatform(),
     };
     await db.workoutSessions.put(session);
   };
@@ -500,6 +504,8 @@ function Checkout({
       modifiedExerciseIds: [],
       skippedExerciseIds: [],
       generalFeeling: feeling,
+      source: "app",
+      platform: currentPlatform(),
     };
     await completeWorkoutSession(session);
     setBusy(false);

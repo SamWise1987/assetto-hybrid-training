@@ -63,6 +63,7 @@ export function buildProgressSummary(input: {
   runs: readonly RunSession[];
   readiness: readonly DailyReadiness[];
   blockWeek: number;
+  matchedExternalCount?: number;
 }): ProgressSummary {
   const completedWorkouts = input.workouts.filter((session) => session.status === "complete");
   const completedRuns = input.runs.filter((run) => run.status === "complete");
@@ -122,7 +123,7 @@ export function buildProgressSummary(input: {
   const plannedSessions = Math.max(1, input.blockWeek * 6);
   const adherencePercent = Math.min(
     100,
-    Math.round(((completedWorkouts.length + completedRuns.length) / plannedSessions) * 100),
+    Math.round(((completedWorkouts.length + completedRuns.length + (input.matchedExternalCount ?? 0)) / plannedSessions) * 100),
   );
 
   return {

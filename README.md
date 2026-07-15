@@ -1,6 +1,6 @@
 # Assetto
 
-Assetto è una PWA mobile-first, local-first e installabile per seguire un blocco di otto settimane che combina ipertrofia domestica e corsa. Ogni modifica automatica è deterministica, spiegata e annullabile. Non sono richiesti account né servizi esterni.
+RobertaFunctional è una piattaforma cliente–trainer per web/PWA e app Capacitor iOS/Android. Account, piani, attività, analisi e inbox condividono Supabase; IndexedDB conserva cache e modifiche offline. Gli adattamenti automatici restano deterministici, spiegati e annullabili.
 
 ## Avvio
 
@@ -11,13 +11,14 @@ npm install
 npm run dev
 ```
 
-Aprire `http://localhost:3000`. Al primo accesso, accettare il disclaimer e scegliere **Crea il mio piano**. Il seed iniziale include tre settimane di dati demo.
+Aprire `http://localhost:3000`. Il login è la prima schermata: i clienti entrano tramite invito di admin/trainer, completano l’onboarding e ricevono il piano assegnato.
 
 ## Comandi
 
 ```bash
 npm run lint
 npm run typecheck
+npm run typecheck:app
 npm test
 npm run test:e2e
 npm run build
@@ -72,16 +73,16 @@ Il motore non legge direttamente IndexedDB: riceve input tipizzati e restituisce
 
 ## Dati e privacy
 
-Tutti i dati risiedono nel database IndexedDB `assetto-local-v1`. Dalle impostazioni si può:
+Dopo il login Supabase è la fonte condivisa e IndexedDB `assetto-local-v1` è cache offline. Dalle impostazioni si può:
 
 - esportare/importare il database completo in JSON;
 - esportare lo storico in CSV;
 - cancellare tutto con tripla conferma intenzionale;
 - ripristinare il seed demo.
 
-## Backend e Supabase (opt-in)
+## Backend e Supabase
 
-L'app resta **local-first**. Il backend Next.js espone:
+Il backend Next.js espone, oltre agli endpoint legacy di snapshot, API normalizzate per onboarding, piani, clienti, attività esterne, suggerimenti, notifiche e coda offline:
 
 | Endpoint | Metodo | Descrizione |
 |----------|--------|-------------|
@@ -89,34 +90,43 @@ L'app resta **local-first**. Il backend Next.js espone:
 | `/api/coach` | POST | Revisione settimanale (OpenAI o fallback locale) |
 | `/api/sync/push` | POST | Carica snapshot IndexedDB (Bearer JWT Supabase) |
 | `/api/sync/pull` | GET | Scarica ultimo snapshot cloud |
+| `/api/sync/normalized` | GET/POST | Sincronizza log append-only e readiness |
+| `/api/external-workouts` | GET/POST/PATCH | Health/GPX cloud e matching manuale |
+| `/api/staff/clients` | GET/POST/PATCH | Clienti, inviti e assegnazioni trainer |
+| `/api/staff/clients/:id` | GET | Dettaglio atleta assegnato, calendario e aderenza |
+| `/api/analysis/suggestions` | GET/POST/PATCH | Suggerimenti versionati e approvazioni |
+| `/api/notifications` | GET/PATCH | Inbox realtime e stato letto |
+| `/api/push/register` | GET/POST/DELETE | Subscription Web Push e token APNs/FCM |
+| `/api/monitoring/errors` | POST | Errori client, sync, Health e notifiche |
+| `/api/admin/errors` | GET | Monitoraggio errori per amministratori |
 
 ### Setup Supabase
 
 1. Crea un progetto su [supabase.com](https://supabase.com).
-2. Esegui `supabase/migrations/001_assetto_backend.sql` nel SQL Editor.
-3. Abilita **Email OTP** in Authentication → Providers.
+2. Esegui in ordine tutte le migrazioni in `supabase/migrations/`, incluse `004_platform_foundation.sql`, `005_privacy_hardening.sql`, `006_notification_idempotency.sql` e `007_onboarding_consent.sql`.
+3. Abilita **Email** in Authentication → Providers. Imposta il dominio web come Site URL e aggiungi tra le Redirect URLs `https://tuo-dominio/auth/callback` (oltre all’equivalente locale per lo sviluppo). La pagina callback permette di continuare sul web o inoltra credenziali/PKCE al deep link Capacitor.
 4. Copia URL, anon key e service role key in `.env.local`:
 
 ```bash
 cp .env.example .env.local
 ```
 
-5. In Impostazioni app: login con magic link → **Carica backup cloud**.
+5. Accedi dalla schermata iniziale e usa gli inviti per trainer/clienti.
 
-RLS garantisce che ogni utente veda solo i propri snapshot.
+RLS limita l’atleta ai propri dati e il trainer ai clienti assegnati. L’admin accede alla struttura e a proiezioni operative limitate (stato account/sync), ma non può interrogare profili sanitari, log o suggerimenti individuali. IndexedDB registra il proprietario della cache: al cambio account i dati del precedente utente vengono rimossi prima di qualsiasi sincronizzazione; il logout non procede se restano modifiche offline in coda.
+
+Il test contrattuale RLS è in `supabase/tests/rls_platform.test.sql` e richiede un database Supabase locale avviato (Docker). Le migrazioni sono additive: non eliminare gli snapshot legacy finché la migrazione dei dati non è stata verificata sugli account reali.
 
 ## Ruoli admin / coach
 
 1. Imposta la tua email in `ASSETTO_ADMIN_EMAILS` (`.env.local` e Vercel).
-2. Accedi con magic link in **Impostazioni**.
-3. Al primo login diventi **admin** e compare il tab **Coach**.
-4. In **Studio piani** puoi:
+2. Accedi dalla schermata iniziale.
+3. Al primo login diventi **admin** e compare la dashboard staff.
+4. In **Piani** puoi:
    - rinominare ogni allenamento (es. "Forza A" → "Upper ipertrofia");
    - salvare un piano personalizzato su Supabase;
    - assegnarlo a un atleta tramite email.
-5. Per promuovere un coach: `POST /api/admin/roles` con `{ "email": "...", "role": "coach" }`.
-
-Esegui anche `supabase/migrations/002_roles_and_plans.sql` nel SQL Editor.
+5. Dalla dashboard admin puoi invitare trainer, assegnare clienti e consultare l’audit log.
 
 ## Coach AI (opzionale)
 
@@ -141,7 +151,12 @@ La build di produzione registra `public/sw.js`, mette in cache shell, manifest e
 4. Variabili ambiente (minimo nessuna; per cloud/AI vedi `.env.example`):
    - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
    - `OPENAI_API_KEY` (opzionale)
+   - `NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY`, `WEB_PUSH_PRIVATE_KEY`, `WEB_PUSH_SUBJECT` per Web Push
 5. Pubblicare. Il service worker viene registrato solo in produzione.
+
+La Web Push è già gestita dall'app e dal service worker. APNs e FCM richiedono invece le credenziali provider e i file nativi descritti in [CAPACITOR.md](./CAPACITOR.md); senza queste credenziali restano comunque operative inbox realtime e badge.
+
+Usa `npm run check:production` per verificare variabili provider, `google-services.json`, entitlements iOS e migrazioni richieste senza stampare alcun segreto.
 
 ## Verifica manuale consigliata
 

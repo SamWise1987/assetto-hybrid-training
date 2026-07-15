@@ -21,6 +21,7 @@ import { completeRunSession, db, ensureRunPlansForCurrentWeek, getActiveBlockWee
 import type { RunSession, WorkoutTemplate } from "@/lib/types";
 import { z } from "zod";
 import { Button, Field, ScaleControl, Surface } from "../ui";
+import { currentPlatform } from "@/lib/platform";
 
 const DAYS_SHORT = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 const DAYS = ["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"];
@@ -45,10 +46,11 @@ function isWorkoutDay(template?: WorkoutTemplate) {
 export function CalendarScreen() {
   const runs = useLiveQuery(() => db.runs.orderBy("date").reverse().toArray()) ?? [];
   const sessions = useLiveQuery(() => db.workoutSessions.toArray(), [], []) ?? [];
+  const externalWorkouts = useLiveQuery(() => db.externalWorkouts.toArray(), [], []);
   const runPlans = useLiveQuery(() => ensureRunPlansForCurrentWeek(), []) ?? [];
   const calibrations = useLiveQuery(() => db.runCalibrationDecisions.orderBy("date").reverse().toArray()) ?? [];
   const blockWeek = useLiveQuery(() => getActiveBlockWeek(), [], 4);
-  const resolvedTemplates = useLiveQuery(() => getResolvedTemplates(), [], []) ?? [];
+  const resolvedTemplates = useLiveQuery(() => getResolvedTemplates(), [], []);
   const [cursor, setCursor] = useState(() => startOfMonth(new Date()));
   const [selected, setSelected] = useState(() => new Date());
   const [view, setView] = useState<"month" | "week">("month");
@@ -71,6 +73,7 @@ export function CalendarScreen() {
   const selectedIso = toIsoDate(selected);
   const selectedRunPlan = runPlans.find((entry) => entry.date === selectedIso || entry.dayOfWeek === selected.getDay());
   const selectedSession = sessions.find((entry) => entry.date === selectedIso);
+  const selectedExternal = externalWorkouts.find((entry) => entry.matchedTemplateId && entry.startDate.slice(0, 10) === selectedIso);
   const selectedRun = runs.find((entry) => entry.date === selectedIso);
 
   const reminders = useMemo(() => {
@@ -142,7 +145,8 @@ export function CalendarScreen() {
           const workout = isWorkoutDay(template);
           const iso = toIsoDate(day);
           const done = sessions.some((entry) => entry.date === iso && entry.status === "complete")
-            || runs.some((entry) => entry.date === iso && entry.status === "complete");
+            || runs.some((entry) => entry.date === iso && entry.status === "complete")
+            || externalWorkouts.some((entry) => entry.matchedTemplateId && entry.startDate.slice(0, 10) === iso);
           return (
             <button
               key={iso}
@@ -193,7 +197,7 @@ export function CalendarScreen() {
         {selectedTemplate?.kind === "strength" ? (
           <div className="calendar-detail-meta">
             <p>Circa {selectedTemplate.estimatedMinutes} min · {selectedTemplate.prescriptions.length} esercizi in scheda</p>
-            {selectedSession ? <p className="success-message">Seduta già registrata ({selectedSession.status}).</p> : <p>Reminder: completa check-in e registra carichi, pause e hint della scheda.</p>}
+            {selectedSession ? <p className="success-message">Seduta già registrata ({selectedSession.status}).</p> : selectedExternal ? <p className="success-message">Attività Health associata alla scheda. Conta per l’aderenza, senza progressioni di serie automatiche.</p> : <p>Reminder: completa check-in e registra carichi, pause e hint della scheda.</p>}
           </div>
         ) : null}
         {selectedTemplate?.kind === "run" ? (
@@ -204,7 +208,7 @@ export function CalendarScreen() {
                 : `circa ${selectedTemplate.estimatedMinutes} min`}
             </p>
             {selectedTemplate.notes?.map((note) => <p key={note}>{note}</p>)}
-            {selectedRun ? <p className="success-message">Corsa registrata · RPE {selectedRun.rpe}</p> : <p>Reminder: talk test e sintomi da segnare a fine uscita.</p>}
+            {selectedRun ? <p className="success-message">Corsa registrata{selectedRun.subjectiveDataAvailable === false ? " · dati soggettivi non disponibili" : ` · RPE ${selectedRun.rpe}`}</p> : <p>Reminder: talk test e sintomi da segnare a fine uscita.</p>}
           </div>
         ) : null}
       </Surface>
@@ -251,7 +255,7 @@ export function CalendarScreen() {
                 <strong>{run.type === "controlled-quality" ? "Qualità controllata" : "Facile"}</strong>
                 <span>{new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "short" }).format(new Date(`${run.date}T12:00:00`))}</span>
               </div>
-              <p>{run.durationMinutes} min · {run.distanceKm ?? "—"} km · RPE {run.rpe}</p>
+              <p>{run.durationMinutes} min · {run.distanceKm ?? "—"} km · {run.subjectiveDataAvailable === false ? "RPE non disponibile" : `RPE ${run.rpe}`}</p>
               {run.conversionReason ? <small>{run.conversionReason}</small> : null}
             </article>
           ))}
@@ -294,6 +298,9 @@ function RunForm({ onSaved }: { onSaved: () => void }) {
       rpe: result.data.rpe,
       talkTest: form.talkTest,
       symptomsDuring: form.symptoms,
+      source: "manual",
+      platform: currentPlatform(),
+      subjectiveDataAvailable: true,
     };
     const calibration = await completeRunSession(run);
     if (calibration) setCalibrationMessage(calibration.reason);

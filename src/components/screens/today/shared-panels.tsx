@@ -3,7 +3,7 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { useState } from "react";
 import { ArrowLeft, Check } from "lucide-react";
-import { db } from "@/lib/db";
+import { db, enqueueSync } from "@/lib/db";
 import { Button, ScaleControl, Toggle } from "../../ui";
 
 const isoToday = new Date().toISOString().slice(0, 10);
@@ -67,14 +67,16 @@ export function NextDayPanel({ onBack }: { onBack: () => void }) {
         <Button
           onClick={async () => {
             if (latestSession) {
-              await db.nextDayResponses.put({
+              const response = {
                 id: `next-${latestSession.id}`,
                 sessionId: latestSession.id,
                 date: isoToday,
                 shoulderBackToBaseline: shoulder,
                 cervicalBackToBaseline: cervical,
                 perceivedRecovery: recovery as 1 | 2 | 3 | 4 | 5,
-              });
+              };
+              await db.nextDayResponses.put(response);
+              await enqueueSync({ entity: "follow_up", entityId: response.id, operation: "upsert", payload: response });
             }
             setSaved(true);
           }}

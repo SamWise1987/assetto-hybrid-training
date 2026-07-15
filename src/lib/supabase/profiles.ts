@@ -7,6 +7,7 @@ export interface RemoteUserProfile {
   email: string;
   displayName: string;
   role: UserRole;
+  updatedAt: string;
 }
 
 export async function ensureUserProfile(user: { id: string; email?: string | null }) {
@@ -18,7 +19,7 @@ export async function ensureUserProfile(user: { id: string; email?: string | nul
 
   const { data: existing } = await service
     .from("user_roles")
-    .select("user_id, email, display_name, role")
+    .select("user_id, email, display_name, role, updated_at")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -36,7 +37,7 @@ export async function ensureUserProfile(user: { id: string; email?: string | nul
         display_name: email.split("@")[0],
         role,
       })
-      .select("user_id, email, display_name, role")
+      .select("user_id, email, display_name, role, updated_at")
       .single();
     if (error) throw new Error(error.message);
     return {
@@ -44,17 +45,30 @@ export async function ensureUserProfile(user: { id: string; email?: string | nul
       email: data.email,
       displayName: data.display_name,
       role: data.role as UserRole,
+      updatedAt: data.updated_at,
+    } satisfies RemoteUserProfile;
+  }
+
+  const nextDisplayName = existing.display_name || email.split("@")[0];
+  const nextRole = existing.role === "athlete" && envRole === "admin" ? "admin" : existing.role;
+  if (nextDisplayName === existing.display_name && nextRole === existing.role) {
+    return {
+      userId: existing.user_id,
+      email: existing.email,
+      displayName: existing.display_name,
+      role: existing.role as UserRole,
+      updatedAt: existing.updated_at,
     } satisfies RemoteUserProfile;
   }
 
   const { data, error } = await service
     .from("user_roles")
     .update({
-      display_name: existing.display_name || email.split("@")[0],
-      role: existing.role === "athlete" && envRole === "admin" ? "admin" : existing.role,
+      display_name: nextDisplayName,
+      role: nextRole,
     })
     .eq("user_id", user.id)
-    .select("user_id, email, display_name, role")
+    .select("user_id, email, display_name, role, updated_at")
     .single();
 
   if (error) throw new Error(error.message);
@@ -63,6 +77,7 @@ export async function ensureUserProfile(user: { id: string; email?: string | nul
     email: data.email,
     displayName: data.display_name,
     role: data.role as UserRole,
+    updatedAt: data.updated_at,
   } satisfies RemoteUserProfile;
 }
 
@@ -102,6 +117,8 @@ export function mapRemotePlan(row: {
         type: session.runConfig!.type,
         durationMinutes: session.runConfig!.durationMinutes,
         notes: session.runConfig!.notes,
+        workoutTemplateId: session.runConfig!.workoutTemplateId,
+        segments: session.runConfig!.segments,
       })),
     createdBy: row.created_by,
     createdAt: row.created_at,

@@ -1,5 +1,4 @@
-import type { UserRole, WorkoutTemplate } from "./types";
-import { TEMPLATES } from "./program";
+import type { UserRole } from "./types";
 
 export function isStaffRole(role?: UserRole | null) {
   return role === "admin" || role === "coach";

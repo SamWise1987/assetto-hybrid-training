@@ -1,4 +1,5 @@
 import type { RunSession } from "./types";
+import { currentPlatform } from "./platform";
 
 export interface StravaActivity {
   id: number;
@@ -43,7 +44,9 @@ export function stravaActivityToRunSession(activity: StravaActivity): RunSession
     rpe: activity.suffer_score ? Math.min(10, Math.round(activity.suffer_score / 10)) : 4,
     talkTest: "full-sentences",
     symptomsDuring: 0,
+    subjectiveDataAvailable: false,
     source: "strava",
+    platform: currentPlatform(),
     externalId: String(activity.id),
     elevationGainM: activity.total_elevation_gain
       ? Math.round(activity.total_elevation_gain)

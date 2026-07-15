@@ -1,4 +1,5 @@
 import type { RunSession } from "./types";
+import { currentPlatform } from "./platform";
 
 export interface GpxTrackPoint {
   lat: number;
@@ -97,7 +98,9 @@ export function gpxToRunSession(activity: ParsedGpxActivity, type: RunSession["t
     rpe: 4,
     talkTest: "full-sentences",
     symptomsDuring: 0,
+    subjectiveDataAvailable: false,
     source: "gpx",
+    platform: currentPlatform(),
     externalId: `gpx-${activity.startTime}`,
     elevationGainM: activity.elevationGainM,
     averageHeartRate: activity.averageHeartRate,
