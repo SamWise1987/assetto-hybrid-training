@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { BarChart3, Bell, CalendarDays, ClipboardList, Dumbbell, Home, Settings, Sparkles, UserRound, Users } from "lucide-react";
 import { db } from "@/lib/db";
 import { canManagePlans } from "@/lib/roles";
-import { consumeRemoteAuthCallback, getRemoteAccessToken, getRemoteAuthCallbackParams, getRemoteSession, migrateLocalDataForAccount, onRemoteAuthChange, pullAthleteProfileFromCloud, pullExternalWorkoutsFromCloud, syncAccountProfile } from "@/lib/remote-sync";
-import { syncAssignedPlanFromCloud } from "@/lib/plan-sync";
+import { consumeRemoteAuthCallback, getRemoteAccessToken, getRemoteAuthCallbackParams, getRemoteSession, migrateLocalDataForAccount, onRemoteAuthChange, syncAccountProfile } from "@/lib/remote-sync";
 import { useAppStore, type AppTab } from "@/lib/store";
 import { getDisplayName } from "@/lib/user-display";
 import { Onboarding } from "./onboarding";
@@ -24,11 +23,12 @@ import { InboxScreen } from "./screens/inbox";
 import { NativeHealthSync } from "./native-health-sync";
 import { AwaitingPlanScreen } from "./screens/awaiting-plan";
 import { SyncManager } from "./sync-manager";
-import { pullNormalizedHistory } from "@/lib/normalized-sync";
+import { refreshAthleteCloudState } from "@/lib/cloud-refresh";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
-import type { AppNotification } from "@/lib/types";
+import type { AppNotification, PlanAssignment, TrainingPlan } from "@/lib/types";
 import { ErrorMonitor } from "./error-monitor";
 import { ConsentConfirmation } from "./consent-confirmation";
+import { CloudRefreshManager } from "./cloud-refresh-manager";
 
 const athleteTabs: { id: AppTab; label: string; icon: typeof Home }[] = [
   { id: "today", label: "Oggi", icon: Home },
@@ -65,6 +65,9 @@ export function AssettoApp() {
   const [bootstrapDone, setBootstrapDone] = useState(false);
   const isStaff = canManagePlans(account?.role);
   const tabs = isStaff ? staffTabs : athleteTabs;
+  const handleNewPlan = useCallback((plan: TrainingPlan, assignment: PlanAssignment | null) => {
+    setPlanNotice({ planName: plan.name, assignedAt: assignment?.assignedAt ?? new Date().toISOString() });
+  }, [setPlanNotice]);
 
   useEffect(() => {
     getRemoteSession().then((session) => setAuthState(session ? "authenticated" : "anonymous"));
@@ -76,12 +79,11 @@ export function AssettoApp() {
     const bootstrap = async () => {
       const remoteProfile = await syncAccountProfile().catch(() => null);
       if (remoteProfile) await migrateLocalDataForAccount(remoteProfile.userId).catch(() => undefined);
-      await pullAthleteProfileFromCloud().catch(() => undefined);
-      await pullExternalWorkoutsFromCloud().catch(() => undefined);
-      await pullNormalizedHistory().catch(() => undefined);
-      const result = await syncAssignedPlanFromCloud().catch(() => null);
-      if (result?.isNew && result.plan) {
-        setPlanNotice({ planName: result.plan.name, assignedAt: result.assignment?.assignedAt ?? new Date().toISOString() });
+      if (remoteProfile?.role === "athlete") {
+        const result = await refreshAthleteCloudState();
+        if (result.assignedPlan?.isNew && result.assignedPlan.plan) {
+          handleNewPlan(result.assignedPlan.plan, result.assignedPlan.assignment);
+        }
       }
       setBootstrapDone(true);
     };
@@ -101,7 +103,7 @@ export function AssettoApp() {
     if (integration) {
       window.history.replaceState({}, "", window.location.pathname);
     }
-  }, [authState, setIntegrationMessage, setPlanNotice, setTab]);
+  }, [authState, handleNewPlan, setIntegrationMessage, setTab]);
 
   useEffect(() => {
     const staffOnly = tab === "coach" || tab === "clients";
@@ -174,6 +176,7 @@ export function AssettoApp() {
     <div className="app-shell">
       <ErrorMonitor />
       <NativeHealthSync enabled={!isStaff} />
+      <CloudRefreshManager enabled={!isStaff} onNewPlan={handleNewPlan} />
       <SyncManager />
       <header className="app-header">
         <span className="wordmark">RobertaFunctional</span>

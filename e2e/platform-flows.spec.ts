@@ -31,6 +31,57 @@ test("cliente mantiene piano, Health, analisi e inbox anche dopo reload offline"
   await context.setOffline(false);
 });
 
+test("la web app aggiorna le attività Health quando torna visibile", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Il refresh foreground è indipendente dal breakpoint.");
+  await installSession(page, athleteId, "alex@example.com");
+  await mockPlatformApi(page, "athlete");
+  await page.unroute("**/api/external-workouts**");
+  let healthPulls = 0;
+  await page.route("**/api/external-workouts**", (route) => {
+    healthPulls += 1;
+    const base = {
+      source: "apple_health",
+      platform: "ios",
+      workout_type: "functionalStrengthTraining",
+      kind: "strength",
+      end_date: "2026-07-13T17:45:00.000Z",
+      duration_minutes: 45,
+      distance_km: null,
+      calories_kcal: 260,
+      average_heart_rate: 112,
+      max_heart_rate: 145,
+      source_name: "Apple Watch",
+      matched_template_id: null,
+      matched_at: null,
+      imported_at: "2026-07-13T18:00:00.000Z",
+    };
+    const workouts = [{
+      ...base,
+      id: "66666666-6666-4666-8666-666666666666",
+      external_id: "health-1",
+      start_date: "2026-07-13T17:00:00.000Z",
+    }];
+    if (healthPulls > 1) workouts.push({
+      ...base,
+      id: "88888888-8888-4888-8888-888888888888",
+      external_id: "health-2",
+      start_date: "2026-07-15T17:00:00.000Z",
+      end_date: "2026-07-15T17:45:00.000Z",
+      imported_at: "2026-07-15T18:00:00.000Z",
+    });
+    return route.fulfill({ json: { workouts } });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Analisi" }).click();
+  await expect(page.getByText(/1 attività · ultimo dato/)).toBeVisible();
+
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+
+  await expect.poll(() => healthPulls).toBeGreaterThan(1);
+  await expect(page.getByText(/2 attività · ultimo dato/)).toBeVisible();
+});
+
 test("trainer apre il cliente e modifica una copia strutturata della corsa", async ({ page }, testInfo) => {
   const pageErrors: Error[] = [];
   page.on("pageerror", (error) => pageErrors.push(error));
