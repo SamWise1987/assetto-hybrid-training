@@ -15,7 +15,8 @@ export async function GET(request: Request) {
   const profile = await getRemoteUserProfile(request);
   if (!profile) return jsonError("Autenticazione richiesta.", 401);
   const client = staffClient(request); if (!client) return jsonError("Supabase non configurato.", 503);
-  const { data } = await client.from("push_subscriptions").select("id,platform,device_id,updated_at").eq("user_id", profile.userId);
+  const { data, error } = await client.from("push_subscriptions").select("id,platform,device_id,updated_at").eq("user_id", profile.userId);
+  if (error) return jsonError(error.message, 500);
   return jsonOk({ subscriptions: data ?? [], webPushConfigured: Boolean(process.env.NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY && process.env.WEB_PUSH_PRIVATE_KEY) });
 }
 
@@ -39,9 +40,10 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   const profile = await getRemoteUserProfile(request);
   if (!profile) return jsonError("Autenticazione richiesta.", 401);
-  const parsed = z.object({ platform: z.enum(["web", "ios", "android"]), deviceId: z.string() }).safeParse(await request.json());
+  const parsed = z.object({ platform: z.enum(["web", "ios", "android"]), deviceId: z.string().min(3).max(200) }).safeParse(await request.json());
   if (!parsed.success) return jsonError("Rimozione non valida.");
   const client = staffClient(request); if (!client) return jsonError("Supabase non configurato.", 503);
-  await client.from("push_subscriptions").delete().eq("user_id", profile.userId).eq("platform", parsed.data.platform).eq("device_id", parsed.data.deviceId);
+  const { error } = await client.from("push_subscriptions").delete().eq("user_id", profile.userId).eq("platform", parsed.data.platform).eq("device_id", parsed.data.deviceId);
+  if (error) return jsonError(error.message, 500);
   return jsonOk({ removed: true });
 }
