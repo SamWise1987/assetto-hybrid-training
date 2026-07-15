@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { jsonError, jsonOk } from "@/lib/api-utils";
-import { getRemoteUserProfile, staffClient } from "@/lib/supabase/profiles";
+import { getRemoteUserProfile, staffClient, verifyActiveTrainerClient } from "@/lib/supabase/profiles";
 import type { Database } from "@/lib/supabase/client";
 import { createServiceSupabaseClient } from "@/lib/supabase/server";
 import { dispatchPush } from "@/lib/push-server";
@@ -131,8 +131,18 @@ export async function GET(request: Request) {
   const profile = await getRemoteUserProfile(request);
   if (!profile) return jsonError("Autenticazione richiesta.", 401);
   const requested = new URL(request.url).searchParams.get("userId");
-  const userId = requested && profile.role !== "athlete" ? requested : profile.userId;
+  if (profile.role === "admin") return jsonError("I log dettagliati degli atleti non sono disponibili agli amministratori.", 403);
+  if (profile.role === "athlete" && requested && requested !== profile.userId) return jsonError("Puoi consultare soltanto il tuo storico.", 403);
   const client = staffClient(request); if (!client) return jsonError("Supabase non configurato.", 503);
+  let userId = profile.userId;
+  if (profile.role === "coach") {
+    const parsedAthleteId = z.string().uuid().safeParse(requested);
+    if (!parsedAthleteId.success) return jsonError("Seleziona un cliente valido.");
+    userId = parsedAthleteId.data;
+    const access = await verifyActiveTrainerClient(client, profile.userId, userId);
+    if (access.error) return jsonError(access.error.message, 500);
+    if (!access.allowed) return jsonError("Cliente non assegnato a questo trainer.", 403);
+  }
   const [{ data: workouts }, { data: runs }, { data: readiness }, { data: followUps }] = await Promise.all([
     client.from("training_session_logs").select("*").eq("user_id", userId).order("session_date", { ascending: false }).limit(200),
     client.from("run_session_logs").select("*").eq("user_id", userId).order("session_date", { ascending: false }).limit(200),

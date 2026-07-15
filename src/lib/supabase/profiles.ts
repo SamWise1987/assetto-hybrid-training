@@ -1,4 +1,6 @@
 import type { TrainingPlan, TrainingPlanSession, UserRole } from "@/lib/types";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "./client";
 import { createServiceSupabaseClient, createUserSupabaseClient, getUserFromRequest } from "./server";
 import { roleFromEmail } from "@/lib/roles";
 
@@ -130,4 +132,19 @@ export function staffClient(request: Request) {
   const token = request.headers.get("authorization")?.slice(7);
   if (!token) return null;
   return createUserSupabaseClient(token);
+}
+
+export async function verifyActiveTrainerClient(
+  client: SupabaseClient<Database>,
+  trainerUserId: string,
+  athleteUserId: string,
+) {
+  const { data, error } = await client
+    .from("trainer_clients")
+    .select("id")
+    .eq("trainer_user_id", trainerUserId)
+    .eq("athlete_user_id", athleteUserId)
+    .eq("status", "active")
+    .maybeSingle();
+  return { allowed: Boolean(data), error };
 }

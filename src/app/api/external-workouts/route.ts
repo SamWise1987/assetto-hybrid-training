@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { jsonError, jsonOk } from "@/lib/api-utils";
-import { getRemoteUserProfile, staffClient } from "@/lib/supabase/profiles";
+import { getRemoteUserProfile, staffClient, verifyActiveTrainerClient } from "@/lib/supabase/profiles";
 import { createServiceSupabaseClient } from "@/lib/supabase/server";
 import { dispatchPush } from "@/lib/push-server";
 import { notificationDedupeKey } from "@/lib/notification-events";
@@ -28,11 +28,21 @@ const workoutSchema = z.object({
 export async function GET(request: Request) {
   const profile = await getRemoteUserProfile(request);
   if (!profile) return jsonError("Autenticazione richiesta.", 401);
-  const client = staffClient(request);
-  if (!client) return jsonError("Supabase non configurato.", 503);
   const url = new URL(request.url);
   const requestedUserId = url.searchParams.get("userId");
-  const userId = requestedUserId && profile.role !== "athlete" ? requestedUserId : profile.userId;
+  if (profile.role === "admin") return jsonError("I dettagli Health non sono disponibili agli amministratori.", 403);
+  if (profile.role === "athlete" && requestedUserId && requestedUserId !== profile.userId) return jsonError("Puoi consultare soltanto le tue attività.", 403);
+  const client = staffClient(request);
+  if (!client) return jsonError("Supabase non configurato.", 503);
+  let userId = profile.userId;
+  if (profile.role === "coach") {
+    const parsedAthleteId = z.string().uuid().safeParse(requestedUserId);
+    if (!parsedAthleteId.success) return jsonError("Seleziona un cliente valido.");
+    userId = parsedAthleteId.data;
+    const access = await verifyActiveTrainerClient(client, profile.userId, userId);
+    if (access.error) return jsonError(access.error.message, 500);
+    if (!access.allowed) return jsonError("Cliente non assegnato a questo trainer.", 403);
+  }
   const { data, error } = await client.from("external_workouts").select("*").eq("user_id", userId).order("start_date", { ascending: false }).limit(200);
   if (error) return jsonError(error.message, 500);
   return jsonOk({ workouts: data ?? [] });
