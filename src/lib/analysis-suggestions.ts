@@ -2,7 +2,7 @@ import type { SuggestionStatus, TrainingPlanSession } from "./types";
 
 const transitions: Record<SuggestionStatus, SuggestionStatus[]> = {
   proposed: ["modified", "approved", "rejected"],
-  modified: ["modified", "approved", "applied", "rejected"],
+  modified: ["modified", "approved", "rejected"],
   approved: ["modified", "applied", "rejected"],
   applied: ["undone"],
   rejected: [],
@@ -11,6 +11,14 @@ const transitions: Record<SuggestionStatus, SuggestionStatus[]> = {
 
 export function canTransitionSuggestion(from: SuggestionStatus, to: SuggestionStatus) {
   return transitions[from].includes(to);
+}
+
+export function suggestionPatchIsUnchanged(
+  currentStatus: SuggestionStatus,
+  nextStatus: SuggestionStatus,
+  hasContentEdits: boolean,
+) {
+  return currentStatus === nextStatus && (nextStatus !== "modified" || !hasContentEdits);
 }
 
 export function applySuggestionToPlan(

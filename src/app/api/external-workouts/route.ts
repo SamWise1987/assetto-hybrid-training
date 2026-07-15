@@ -100,7 +100,13 @@ export async function PATCH(request: Request) {
   if (!parsed.success) return jsonError("Abbinamento non valido.");
   const client = staffClient(request);
   if (!client) return jsonError("Supabase non configurato.", 503);
-  const { error } = await client.from("external_workouts").update({ matched_template_id: parsed.data.templateId, matched_at: new Date().toISOString() }).eq("id", parsed.data.id).eq("user_id", profile.userId);
+  const { data, error } = await client.from("external_workouts")
+    .update({ matched_template_id: parsed.data.templateId, matched_at: new Date().toISOString() })
+    .eq("id", parsed.data.id)
+    .eq("user_id", profile.userId)
+    .select("id,matched_template_id,matched_at")
+    .maybeSingle();
   if (error) return jsonError(error.message, 500);
-  return jsonOk({ matched: true });
+  if (!data) return jsonError("Attività non trovata.", 404);
+  return jsonOk({ matched: true, workout: data });
 }
