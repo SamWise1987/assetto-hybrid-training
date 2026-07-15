@@ -7,36 +7,44 @@ import { reportAppError } from "./error-monitor";
 
 let flushing = false;
 
+function isOnline() {
+  return typeof navigator === "undefined" || navigator.onLine !== false;
+}
+
 export async function flushSyncQueue() {
-  if (flushing || typeof navigator !== "undefined" && !navigator.onLine) return 0;
+  if (flushing || !isOnline()) return 0;
   flushing = true;
   try {
     const token = await getRemoteAccessToken();
     if (!token) return 0;
-    const items = await db.syncQueue.orderBy("createdAt").limit(100).toArray();
-    if (!items.length) return 0;
-    const response = await fetch("/api/sync/normalized", {
-      method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ items: items.map(({ entity, entityId, payload }) => ({ entity, entityId, payload })) }),
-    });
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({ error: "Sync server non riuscita" })) as { error?: string };
-      const message = response.status === 409 ? `Conflitto: ${body.error ?? "dati aggiornati su un altro dispositivo"}` : body.error ?? "Sync server non riuscita";
-      if (response.status === 409) {
-        const profileItems = items.filter((item) => item.entity === "profile");
-        if (profileItems.length) {
-          await db.syncQueue.bulkDelete(profileItems.map((item) => item.id));
-          await syncAccountProfile().catch(() => undefined);
+    let synced = 0;
+    while (isOnline()) {
+      const items = await db.syncQueue.orderBy("createdAt").limit(100).toArray();
+      if (!items.length) return synced;
+      const response = await fetch("/api/sync/normalized", {
+        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ items: items.map(({ entity, entityId, payload }) => ({ entity, entityId, payload })) }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({ error: "Sync server non riuscita" })) as { error?: string };
+        const message = response.status === 409 ? `Conflitto: ${body.error ?? "dati aggiornati su un altro dispositivo"}` : body.error ?? "Sync server non riuscita";
+        if (response.status === 409) {
+          const profileItems = items.filter((item) => item.entity === "profile");
+          if (profileItems.length) {
+            await db.syncQueue.bulkDelete(profileItems.map((item) => item.id));
+            await syncAccountProfile().catch(() => undefined);
+          }
+          await Promise.all(items.filter((item) => item.entity !== "profile").map((item) => db.syncQueue.put({ ...item, attemptCount: item.attemptCount + 1, lastError: message })));
+        } else {
+          await Promise.all(items.map((item) => db.syncQueue.put({ ...item, attemptCount: item.attemptCount + 1, lastError: message })));
         }
-        await Promise.all(items.filter((item) => item.entity !== "profile").map((item) => db.syncQueue.put({ ...item, attemptCount: item.attemptCount + 1, lastError: message })));
-      } else {
-        await Promise.all(items.map((item) => db.syncQueue.put({ ...item, attemptCount: item.attemptCount + 1, lastError: message })));
+        reportAppError("sync", message, { status: response.status, itemCount: items.length }).catch(() => undefined);
+        return synced;
       }
-      reportAppError("sync", message, { status: response.status, itemCount: items.length }).catch(() => undefined);
-      return 0;
+      await db.syncQueue.bulkDelete(items.map((item) => item.id));
+      synced += items.length;
     }
-    await db.syncQueue.bulkDelete(items.map((item) => item.id));
-    return items.length;
+    return synced;
   } finally { flushing = false; }
 }
 
