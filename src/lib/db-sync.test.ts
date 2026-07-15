@@ -1,7 +1,12 @@
 import "fake-indexeddb/auto";
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { db, enqueueSync, importExternalWorkout, prepareAccountCache, seedInitialData } from "./db";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { ExternalWorkout } from "./types";
+
+let database: typeof import("./db");
+
+beforeAll(async () => {
+  database = await import("./db");
+});
 
 const workout: ExternalWorkout = {
   id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
@@ -18,13 +23,15 @@ const workout: ExternalWorkout = {
 
 describe("offline normalized cache", () => {
   beforeEach(async () => {
+    const { db } = database;
     await db.open();
     await db.transaction("rw", db.tables, async () => Promise.all(db.tables.map((table) => table.clear())));
   });
 
-  afterAll(() => db.close());
+  afterAll(() => database.db.close());
 
   it("keeps one Health activity and queues it once", async () => {
+    const { db, importExternalWorkout } = database;
     expect((await importExternalWorkout(workout)).imported).toBe(true);
     expect((await importExternalWorkout({ ...workout, id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" })).imported).toBe(false);
     expect(await db.externalWorkouts.count()).toBe(1);
@@ -32,6 +39,7 @@ describe("offline normalized cache", () => {
   });
 
   it("preserves the account migration marker when onboarding seeds local tables", async () => {
+    const { db, seedInitialData } = database;
     await db.appSettings.put({ id: "app-settings", aiCoachEnabled: false, aiModel: "gpt-4.1-mini", localDataMigratedForUserId: "user-1", dataOwnerUserId: "user-1" });
     await seedInitialData({ name: "Alex" });
     expect((await db.appSettings.get("app-settings"))?.localDataMigratedForUserId).toBe("user-1");
@@ -39,6 +47,7 @@ describe("offline normalized cache", () => {
   });
 
   it("never exposes or uploads the cache of a previous account", async () => {
+    const { db, importExternalWorkout, prepareAccountCache, seedInitialData } = database;
     await seedInitialData({ name: "Primo account" });
     expect(await prepareAccountCache("user-1")).toBe("legacy");
     await db.accountProfiles.put({ id: "account-profile", userId: "user-1", email: "one@example.com", displayName: "One", role: "athlete", updatedAt: new Date().toISOString() });
@@ -55,6 +64,7 @@ describe("offline normalized cache", () => {
   });
 
   it("mantiene solo l'ultima modifica profilo nella coda offline", async () => {
+    const { db, enqueueSync } = database;
     await enqueueSync({ entity: "profile", entityId: "user-1", operation: "upsert", payload: { displayName: "Primo" } });
     await enqueueSync({ entity: "profile", entityId: "user-1", operation: "upsert", payload: { displayName: "Secondo" } });
     const queued = await db.syncQueue.where("entity").equals("profile").toArray();

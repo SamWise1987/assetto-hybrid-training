@@ -10,7 +10,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
-    pool: "forks",
+    pool: "threads",
     maxWorkers: 1,
     fileParallelism: false,
     coverage: { reporter: ["text", "json"] },
