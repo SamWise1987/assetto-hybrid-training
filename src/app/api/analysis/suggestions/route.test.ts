@@ -3,16 +3,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getRemoteUserProfile: vi.fn(),
   staffClient: vi.fn(),
+  verifyActiveTrainerClient: vi.fn(),
   dispatchPush: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/profiles", () => ({
   getRemoteUserProfile: mocks.getRemoteUserProfile,
   staffClient: mocks.staffClient,
+  verifyActiveTrainerClient: mocks.verifyActiveTrainerClient,
 }));
 vi.mock("@/lib/push-server", () => ({ dispatchPush: mocks.dispatchPush }));
 
-import { PATCH } from "./route";
+import { GET, PATCH, POST } from "./route";
 
 const suggestionId = "11111111-1111-4111-8111-111111111111";
 const athleteId = "22222222-2222-4222-8222-222222222222";
@@ -36,6 +38,40 @@ describe("PATCH /api/analysis/suggestions", () => {
       email: "coach@example.com",
       role: "coach",
     });
+    mocks.verifyActiveTrainerClient.mockResolvedValue({ allowed: true, error: null });
+  });
+
+  it("restituisce 403 se un trainer richiede l'analisi del cliente di un altro trainer", async () => {
+    mocks.verifyActiveTrainerClient.mockResolvedValue({ allowed: false, error: null });
+    mocks.staffClient.mockReturnValue({ from: vi.fn() });
+
+    const response = await GET(new Request(`http://localhost/api/analysis/suggestions?userId=${athleteId}`, {
+      headers: { Authorization: "Bearer token" },
+    }));
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ error: "Cliente non assegnato a questo trainer." });
+    expect(mocks.verifyActiveTrainerClient).toHaveBeenCalledWith(expect.anything(), "coach-id", athleteId);
+  });
+
+  it("impedisce a un trainer di creare suggerimenti per un cliente non assegnato", async () => {
+    mocks.verifyActiveTrainerClient.mockResolvedValue({ allowed: false, error: null });
+    mocks.staffClient.mockReturnValue({ from: vi.fn() });
+
+    const response = await POST(new Request("http://localhost/api/analysis/suggestions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer token" },
+      body: JSON.stringify({
+        athleteUserId: athleteId,
+        title: "Progressione corsa",
+        rationale: "Il carico recente consente una progressione prudente.",
+        evidence: [],
+        proposedChange: { runDurationPercent: 5 },
+      }),
+    }));
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ error: "Cliente non assegnato a questo trainer." });
   });
 
   it("impedisce di applicare un suggerimento modificato senza approvazione", async () => {

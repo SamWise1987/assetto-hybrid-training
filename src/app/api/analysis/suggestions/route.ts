@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { jsonError, jsonOk } from "@/lib/api-utils";
-import { getRemoteUserProfile, staffClient } from "@/lib/supabase/profiles";
+import { getRemoteUserProfile, staffClient, verifyActiveTrainerClient } from "@/lib/supabase/profiles";
 import type { Database } from "@/lib/supabase/client";
 import { dispatchPush } from "@/lib/push-server";
 import { applySuggestionToPlan, canTransitionSuggestion, suggestionPatchIsUnchanged } from "@/lib/analysis-suggestions";
@@ -14,7 +14,16 @@ export async function GET(request: Request) {
   const client = staffClient(request);
   if (!client) return jsonError("Supabase non configurato.", 503);
   const requested = new URL(request.url).searchParams.get("userId");
-  const athleteUserId = requested && profile.role !== "athlete" ? requested : profile.userId;
+  if (profile.role === "athlete" && requested && requested !== profile.userId) return jsonError("Puoi consultare soltanto la tua analisi.", 403);
+  let athleteUserId = profile.userId;
+  if (profile.role === "coach") {
+    const parsedAthleteId = z.string().uuid().safeParse(requested);
+    if (!parsedAthleteId.success) return jsonError("Seleziona un cliente valido.");
+    athleteUserId = parsedAthleteId.data;
+    const access = await verifyActiveTrainerClient(client, profile.userId, athleteUserId);
+    if (access.error) return jsonError(access.error.message, 500);
+    if (!access.allowed) return jsonError("Cliente non assegnato a questo trainer.", 403);
+  }
   const { data, error } = await client.from("analysis_suggestions").select("*").eq("athlete_user_id", athleteUserId).order("created_at", { ascending: false });
   if (error) return jsonError(error.message, 500);
   return jsonOk({ suggestions: data ?? [] });
@@ -29,6 +38,9 @@ export async function POST(request: Request) {
   }).safeParse(await request.json());
   if (!parsed.success) return jsonError("Suggerimento non valido.");
   const client = staffClient(request); if (!client) return jsonError("Supabase non configurato.", 503);
+  const access = await verifyActiveTrainerClient(client, profile.userId, parsed.data.athleteUserId);
+  if (access.error) return jsonError(access.error.message, 500);
+  if (!access.allowed) return jsonError("Cliente non assegnato a questo trainer.", 403);
   const { data, error } = await client.from("analysis_suggestions").insert({
     athlete_user_id: parsed.data.athleteUserId, title: parsed.data.title, rationale: parsed.data.rationale,
     evidence: parsed.data.evidence, proposed_change: parsed.data.proposedChange as Database["public"]["Tables"]["analysis_suggestions"]["Insert"]["proposed_change"], status: "proposed",
