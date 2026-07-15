@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(14);
+select plan(17);
 
 insert into auth.users (id, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, aud, role)
 values
@@ -38,6 +38,31 @@ insert into public.health_sync_states (user_id, platform, status, error_message)
 insert into public.analysis_suggestions (athlete_user_id, title, rationale, evidence) values
   ('30000000-0000-4000-8000-000000000001', 'Suggestion 1', 'Private rationale', '["private evidence"]'),
   ('30000000-0000-4000-8000-000000000002', 'Suggestion 2', 'Private rationale', '["private evidence"]');
+
+insert into public.training_plans (id, name, created_by) values
+  ('40000000-0000-4000-8000-000000000001', 'Piano cliente invitato', '20000000-0000-4000-8000-000000000001');
+insert into public.plan_assignments (id, plan_id, athlete_email, assigned_by, active) values
+  ('50000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', 'pending@test.local', '20000000-0000-4000-8000-000000000001', true);
+insert into auth.users (id, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, aud, role) values
+  ('30000000-0000-4000-8000-000000000003', 'pending@test.local', '', now(), '{}', '{}', 'authenticated', 'authenticated');
+insert into public.user_roles (user_id, email, display_name, role) values
+  ('30000000-0000-4000-8000-000000000003', 'pending@test.local', 'Pending Athlete', 'athlete');
+
+select is(
+  (select athlete_user_id::text from public.plan_assignments where id = '50000000-0000-4000-8000-000000000001'),
+  '30000000-0000-4000-8000-000000000003',
+  'account activation links the pending plan assignment'
+);
+select is(
+  (select count(*)::int from public.app_notifications where recipient_user_id = '30000000-0000-4000-8000-000000000003' and type = 'plan_assigned'),
+  1,
+  'account activation creates one plan inbox event'
+);
+select is(
+  (select body from public.app_notifications where recipient_user_id = '30000000-0000-4000-8000-000000000003' and type = 'plan_assigned'),
+  'Il trainer ti ha assegnato “Piano cliente invitato”.',
+  'activation notification names the assigned plan'
+);
 
 set local role authenticated;
 
