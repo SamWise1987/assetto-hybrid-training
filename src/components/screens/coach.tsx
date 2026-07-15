@@ -61,6 +61,7 @@ export function CoachScreen() {
   const [sessions, setSessions] = useState<TrainingPlanSession[]>([]);
   const [planName, setPlanName] = useState("Piano personalizzato");
   const [assignEmail, setAssignEmail] = useState("");
+  const [publishReason, setPublishReason] = useState("Aggiornamento del piano in base ai progressi recenti.");
   const [status, setStatus] = useState("");
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
   const [runSearch, setRunSearch] = useState("");
@@ -188,7 +189,7 @@ export function CoachScreen() {
       const response = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ name: plan.name, sessions: plan.sessions, description: plan.description }),
+        body: JSON.stringify({ name: plan.name, sessions: plan.sessions, description: plan.description, ...(method === "PATCH" ? { reason: publishReason.trim() } : {}) }),
       });
       if (!response.ok) {
         const error = (await response.json().catch(() => ({ error: "Salvataggio fallito" }))) as { error?: string };
@@ -440,7 +441,8 @@ export function CoachScreen() {
             </article>
           ))}
         </div>
-        <Button onClick={savePlan}><Save /> Salva piano</Button>
+        <Field label="Motivazione visibile al cliente" value={publishReason} onChange={(event) => setPublishReason(event.target.value)} />
+        <Button onClick={savePlan} disabled={Boolean(/^[0-9a-f-]{36}$/i.test(selectedPlanId)) && publishReason.trim().length < 3}><Save /> Salva piano</Button>
       </Surface>
 
       <Surface>

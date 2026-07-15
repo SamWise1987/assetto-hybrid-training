@@ -34,10 +34,14 @@ describe("normalized offline sync", () => {
       createdAt: new Date(1_700_000_000_000 + index).toISOString(),
       attemptCount: 0,
     })));
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ synced: true }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    }));
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      void input;
+      void init;
+      return new Response(JSON.stringify({ synced: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
     vi.stubGlobal("navigator", { onLine: true });
     vi.stubGlobal("fetch", fetchMock);
 

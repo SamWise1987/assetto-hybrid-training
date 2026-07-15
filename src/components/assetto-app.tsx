@@ -65,8 +65,8 @@ export function AssettoApp() {
   const [bootstrapDone, setBootstrapDone] = useState(false);
   const isStaff = canManagePlans(account?.role);
   const tabs = isStaff ? staffTabs : athleteTabs;
-  const handleNewPlan = useCallback((plan: TrainingPlan, assignment: PlanAssignment | null) => {
-    setPlanNotice({ planName: plan.name, assignedAt: assignment?.assignedAt ?? new Date().toISOString() });
+  const handlePlanChange = useCallback((plan: TrainingPlan, assignment: PlanAssignment | null, kind: "assigned" | "updated", reason?: string) => {
+    setPlanNotice({ planName: plan.name, changedAt: assignment?.assignedAt ?? plan.versionCreatedAt ?? new Date().toISOString(), kind, reason });
   }, [setPlanNotice]);
 
   useEffect(() => {
@@ -81,8 +81,8 @@ export function AssettoApp() {
       if (remoteProfile) await migrateLocalDataForAccount(remoteProfile.userId).catch(() => undefined);
       if (remoteProfile?.role === "athlete") {
         const result = await refreshAthleteCloudState();
-        if (result.assignedPlan?.isNew && result.assignedPlan.plan) {
-          handleNewPlan(result.assignedPlan.plan, result.assignedPlan.assignment);
+        if (result.assignedPlan?.change && result.assignedPlan.plan) {
+          handlePlanChange(result.assignedPlan.plan, result.assignedPlan.assignment, result.assignedPlan.change, result.assignedPlan.reason);
         }
       }
       setBootstrapDone(true);
@@ -103,7 +103,7 @@ export function AssettoApp() {
     if (integration) {
       window.history.replaceState({}, "", window.location.pathname);
     }
-  }, [authState, handleNewPlan, setIntegrationMessage, setTab]);
+  }, [authState, handlePlanChange, setIntegrationMessage, setTab]);
 
   useEffect(() => {
     const staffOnly = tab === "coach" || tab === "clients";
@@ -176,7 +176,7 @@ export function AssettoApp() {
     <div className="app-shell">
       <ErrorMonitor />
       <NativeHealthSync enabled={!isStaff} />
-      <CloudRefreshManager enabled={!isStaff} onNewPlan={handleNewPlan} />
+      <CloudRefreshManager enabled={!isStaff} onPlanChange={handlePlanChange} />
       <SyncManager />
       <header className="app-header">
         <span className="wordmark">RobertaFunctional</span>
@@ -189,7 +189,7 @@ export function AssettoApp() {
       <main id="main-content" className="main-content">
         {planNotice ? (
           <div className="plan-notice" role="status">
-            <strong>Nuovo piano dal trainer: {planNotice.planName}</strong>
+            <div><strong>{planNotice.kind === "assigned" ? "Nuovo piano dal trainer" : "Piano aggiornato"}: {planNotice.planName}</strong>{planNotice.reason ? <p>{planNotice.reason}</p> : null}</div>
             <button type="button" onClick={() => setPlanNotice(null)} aria-label="Chiudi avviso">×</button>
           </div>
         ) : null}

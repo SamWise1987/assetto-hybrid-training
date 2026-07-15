@@ -26,6 +26,7 @@ const patchSchema = z.object({
       }).optional(),
     }),
   ).optional(),
+  reason: z.string().trim().min(3).max(300).optional(),
 });
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -54,13 +55,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const { data, error } = await update.select("*").single();
 
   if (error) return jsonError(error.message, 500);
+  const reason = parsed.data.reason ?? "Aggiornamento del trainer";
   const { data: latestVersion } = await client.from("plan_versions").select("version").eq("plan_id", id).order("version", { ascending: false }).limit(1).maybeSingle();
   const nextVersion = (latestVersion?.version ?? 0) + 1;
   const { error: versionError } = await client.from("plan_versions").insert({
     plan_id: id,
     version: nextVersion,
     snapshot: data as unknown as Database["public"]["Tables"]["plan_versions"]["Insert"]["snapshot"],
-    reason: "Aggiornamento del trainer",
+    reason,
     created_by: staff.userId,
   });
   if (versionError) return jsonError(versionError.message, 500);
@@ -72,7 +74,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       actor_user_id: staff.userId,
       type: "plan_updated",
       title: "Il tuo piano è stato aggiornato",
-      body: "Il trainer ha pubblicato una nuova versione del programma.",
+      body: `Il trainer ha pubblicato una nuova versione del programma. Motivo: ${reason}`,
       href: "/?tab=today",
       entity_type: "training_plan",
       entity_id: id,
@@ -82,6 +84,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const pushRecipients = [...new Set((insertedNotifications ?? []).map((item) => item.recipient_user_id))];
     if (pushRecipients.length) await dispatchPush(pushRecipients, { title: "Il tuo piano è stato aggiornato", body: "Il trainer ha pubblicato una nuova versione del programma.", href: "/?tab=today" });
   }
-  await client.from("audit_log").insert({ actor_user_id: staff.userId, action: "plan_updated", entity_type: "training_plan", entity_id: id, metadata: { version: nextVersion } });
-  return jsonOk({ plan: mapRemotePlan(data) });
+  await client.from("audit_log").insert({ actor_user_id: staff.userId, action: "plan_updated", entity_type: "training_plan", entity_id: id, metadata: { version: nextVersion, reason } });
+  return jsonOk({ plan: { ...mapRemotePlan(data), version: nextVersion, changeReason: reason }, version: nextVersion, reason });
 }

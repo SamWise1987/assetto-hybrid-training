@@ -24,6 +24,8 @@ function queryResult<T>(data: T) {
   const query = {
     select: vi.fn(() => query),
     eq: vi.fn(() => query),
+    order: vi.fn(() => query),
+    limit: vi.fn(() => query),
     maybeSingle: vi.fn(async () => ({ data, error: null })),
     single: vi.fn(async () => ({ data, error: null })),
   };
@@ -52,7 +54,11 @@ describe("GET /api/plans/assigned", () => {
     };
     const plan = { id: "plan-id", name: "Piano Hybrid", sessions: [] };
     mocks.staffClient.mockReturnValue({
-      from: vi.fn((table: string) => table === "plan_assignments" ? queryResult(assignment) : queryResult(plan)),
+      from: vi.fn((table: string) => table === "plan_assignments"
+        ? queryResult(assignment)
+        : table === "training_plans"
+          ? queryResult(plan)
+          : queryResult({ version: 2, reason: "Più recupero tra le sedute", created_at: "2026-07-15T09:00:00.000Z" })),
     });
 
     const upsert = vi.fn(() => ({
@@ -81,13 +87,19 @@ describe("GET /api/plans/assigned", () => {
       body: "Il trainer ti ha assegnato “Piano Hybrid”.",
       href: "/?tab=today",
     });
+    await expect(response.clone().json()).resolves.toMatchObject({
+      plan: { id: "plan-id", version: 2, changeReason: "Più recupero tra le sedute" },
+      planVersion: { version: 2, reason: "Più recupero tra le sedute" },
+    });
   });
 
   it("non reinvia la push quando la notifica idempotente esiste già", async () => {
     mocks.staffClient.mockReturnValue({
       from: vi.fn((table: string) => table === "plan_assignments"
         ? queryResult({ id: "assignment-id", plan_id: "plan-id", athlete_email: "athlete@example.com", assigned_by: "coach-id", assigned_at: "2026-07-15T08:00:00.000Z", active: true })
-        : queryResult({ id: "plan-id", name: "Piano Hybrid", sessions: [] })),
+        : table === "training_plans"
+          ? queryResult({ id: "plan-id", name: "Piano Hybrid", sessions: [] })
+          : queryResult({ version: 1, reason: "Creazione piano", created_at: "2026-07-15T08:00:00.000Z" })),
     });
     mocks.createServiceSupabaseClient.mockReturnValue({
       from: vi.fn(() => ({

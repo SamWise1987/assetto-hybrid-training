@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { athleteId, coachId, installSession, mockPlatformApi } from "./platform-helpers";
+import { assignedPlan, athleteId, coachId, installSession, mockPlatformApi, planId } from "./platform-helpers";
 
 test("cliente mantiene piano, Health, analisi e inbox anche dopo reload offline", async ({ page, context }, testInfo) => {
   await installSession(page, athleteId, "alex@example.com");
@@ -80,6 +80,35 @@ test("la web app aggiorna le attività Health quando torna visibile", async ({ p
 
   await expect.poll(() => healthPulls).toBeGreaterThan(1);
   await expect(page.getByText(/2 attività · ultimo dato/)).toBeVisible();
+});
+
+test("il cliente riceve versione e motivazione quando il trainer aggiorna lo stesso piano", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "La sincronizzazione piano è indipendente dal breakpoint.");
+  await installSession(page, athleteId, "alex@example.com");
+  await mockPlatformApi(page, "athlete");
+  await page.unroute("**/api/plans/assigned");
+  let planPulls = 0;
+  await page.route("**/api/plans/assigned", (route) => {
+    planPulls += 1;
+    const updated = planPulls > 1;
+    const reason = updated ? "Più recupero tra le sedute dopo la settimana recente." : "Piano iniziale condiviso dal trainer.";
+    const version = updated ? 2 : 1;
+    return route.fulfill({ json: {
+      assignment: { id: "55555555-5555-4555-8555-555555555555", planId, athleteEmail: "alex@example.com", athleteUserId: athleteId, assignedBy: coachId, assignedAt: "2026-07-14T08:00:00.000Z", active: true },
+      plan: { ...assignedPlan, name: updated ? "Piano Hybrid aggiornato" : assignedPlan.name, updatedAt: updated ? "2026-07-15T10:00:00.000Z" : assignedPlan.updatedAt, version, changeReason: reason },
+      planVersion: { version, reason, createdAt: updated ? "2026-07-15T10:00:00.000Z" : "2026-07-14T08:00:00.000Z" },
+    } });
+  });
+
+  await page.goto("/");
+  await expect(page.getByText(/Nuovo piano dal trainer: Piano Hybrid test/)).toBeVisible();
+  await page.getByRole("button", { name: "Chiudi avviso" }).click();
+
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+
+  await expect.poll(() => planPulls).toBeGreaterThan(1);
+  await expect(page.getByText(/Piano aggiornato: Piano Hybrid aggiornato/)).toBeVisible();
+  await expect(page.getByText("Più recupero tra le sedute dopo la settimana recente.")).toBeVisible();
 });
 
 test("trainer apre il cliente e modifica una copia strutturata della corsa", async ({ page }, testInfo) => {
