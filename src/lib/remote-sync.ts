@@ -123,9 +123,6 @@ export async function syncAccountProfile() {
     await db.profiles.put({ ...localProfile, name: body.profile.displayName });
   }
 
-  const { syncAssignedPlanFromCloud } = await import("./plan-sync");
-  await syncAssignedPlanFromCloud().catch(() => undefined);
-
   return body.profile;
 }
 
