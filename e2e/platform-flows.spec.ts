@@ -104,3 +104,15 @@ test("admin vede analisi operative senza dettagli sanitari individuali", async (
   await expect(page.getByLabel("Cliente")).toHaveCount(0);
   await expect(page.getByText("Private rationale")).toHaveCount(0);
 });
+
+test("il collegamento salta al contenuto resta nascosto finché non riceve focus da tastiera", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Il comportamento tastiera è indipendente dal breakpoint.");
+  await page.goto("/");
+  const skipLink = page.getByRole("link", { name: "Vai al contenuto" });
+  await expect(skipLink).toHaveCSS("opacity", "0");
+  await page.keyboard.press("Tab");
+  await expect(skipLink).toBeFocused();
+  await expect(skipLink).toHaveCSS("opacity", "1");
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/#main-content$/);
+});
