@@ -1,14 +1,16 @@
 import { defineConfig } from "@playwright/test";
 
+const remoteBaseUrl = process.env.PLAYWRIGHT_BASE_URL;
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
   reporter: "line",
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL: remoteBaseUrl ?? "http://localhost:3000",
     trace: "on-first-retry",
   },
-  webServer: {
+  webServer: remoteBaseUrl ? undefined : {
     command: "npm run start",
     url: "http://localhost:3000",
     reuseExistingServer: true,
