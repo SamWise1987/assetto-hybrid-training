@@ -15,6 +15,10 @@ test("cliente mantiene piano, Health, analisi e inbox anche dopo reload offline"
 
   await page.getByRole("button", { name: /Avvisi/ }).click();
   await expect(page.getByText("Il tuo piano è stato aggiornato")).toBeVisible();
+  await page.getByRole("button", { name: "Apri avviso: Il tuo piano è stato aggiornato" }).click();
+  await expect(page.getByRole("button", { name: "Oggi" })).toHaveAttribute("aria-current", "page");
+  await expect(page).toHaveURL(/\?tab=today$/);
+  await page.getByRole("button", { name: /Avvisi/ }).click();
   await page.screenshot({ path: `/tmp/roberta-athlete-${testInfo.project.name}.png`, fullPage: true });
 
   await page.evaluate(() => navigator.serviceWorker?.ready);
