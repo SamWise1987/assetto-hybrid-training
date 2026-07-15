@@ -246,7 +246,16 @@ export async function pullAthleteProfileFromCloud() {
   return body.profile;
 }
 
-export async function migrateLocalDataForAccount(userId: string) {
+async function remoteDataConsentAccepted() {
+  const token = await getRemoteAccessToken();
+  if (!token) return false;
+  const response = await fetch("/api/me/onboarding", { headers: { Authorization: `Bearer ${token}` } });
+  if (!response.ok) return false;
+  const body = await response.json() as { profile?: { consent_accepted_at?: string | null } | null };
+  return Boolean(body.profile?.consent_accepted_at);
+}
+
+export async function migrateLocalDataForAccount(userId: string, options: { consentAccepted?: boolean } = {}) {
   const { db, enqueueSync, exportDatabase } = await import("./db");
   const settings = await db.appSettings.get("app-settings");
   if (settings?.localDataMigratedForUserId === userId) return false;
@@ -263,6 +272,8 @@ export async function migrateLocalDataForAccount(userId: string) {
   ]);
   const hasLocalData = workouts.length + runs.length + readiness.length + followUps.length + externalWorkouts.length > 0 || Boolean(localProfile);
   if (hasLocalData) {
+    const consentAccepted = options.consentAccepted === true || await remoteDataConsentAccepted();
+    if (!consentAccepted) return false;
     // Keep the legacy snapshot as a temporary recovery point while also
     // populating the normalized cross-device model.
     await pushSnapshotToCloud(await exportDatabase(), true);

@@ -4,7 +4,8 @@ import { useState, useSyncExternalStore } from "react";
 import { CalendarDays, Check, ChevronLeft, Cloud, Dumbbell, HeartPulse, Shield, Smartphone } from "lucide-react";
 import { db, seedInitialData } from "@/lib/db";
 import { getNativeHealthAvailability, importNativeWorkouts, recordNativeHealthFailure } from "@/lib/native-health";
-import { getRemoteAccessToken } from "@/lib/remote-sync";
+import { getRemoteAccessToken, migrateLocalDataForAccount } from "@/lib/remote-sync";
+import { reportAppError } from "@/lib/error-monitor";
 import type { PreferredGreeting } from "@/lib/types";
 import { ONBOARDING_CONSENT_VERSION } from "@/lib/consent";
 import { Button, Field } from "./ui";
@@ -80,6 +81,10 @@ export function Onboarding() {
         consentAcceptedAt: result.consentAcceptedAt, consentVersion: ONBOARDING_CONSENT_VERSION,
         updatedAt: result.completedAt,
       });
+      if (account?.userId) {
+        await migrateLocalDataForAccount(account.userId, { consentAccepted: true })
+          .catch((error) => reportAppError("sync", error, { operation: "local-data-migration" }));
+      }
       window.scrollTo({ top: 0, behavior: "auto" });
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Completamento onboarding fallito.");
