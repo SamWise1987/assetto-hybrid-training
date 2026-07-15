@@ -90,6 +90,11 @@ test("admin vede analisi operative senza dettagli sanitari individuali", async (
   await installSession(page, coachId, "admin@example.com");
   await mockPlatformApi(page, "admin");
   await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Invita un trainer" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Gestione ruoli" })).toBeVisible();
+  await page.getByRole("button", { name: "Piani" }).click();
+  await expect(page.getByRole("heading", { name: "Studio piani" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Crea account trainer" })).toHaveCount(0);
   await page.getByRole("button", { name: "Analisi" }).click();
   await expect(page.getByRole("heading", { name: "Analisi operative" })).toBeVisible();
   await expect(page.getByText(/dettagli atleta protetti/i)).toBeVisible();
