@@ -40,6 +40,9 @@ test("trainer apre il cliente e modifica una copia strutturata della corsa", asy
   await expect(page.getByRole("heading", { name: "Clienti", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Apri dettaglio" }).click();
   await expect(page.getByText("88%")).toBeVisible();
+  await expect(page.getByText("Aderenza · 28 gg")).toBeVisible();
+  await expect(page.getByText("Forza · 28 gg")).toBeVisible();
+  await expect(page.getByText("Corse · 28 gg")).toBeVisible();
   await expect(page.getByText("Piano Hybrid test")).toBeVisible();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);

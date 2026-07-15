@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { jsonError, jsonOk } from "@/lib/api-utils";
 import { mapRemotePlan, requireStaff, staffClient } from "@/lib/supabase/profiles";
+import { calculateTrainerAdherence } from "@/lib/trainer-adherence";
 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   const staff = await requireStaff(request);
@@ -32,15 +33,27 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const workouts = workoutsResult.data ?? [];
   const runs = runsResult.data ?? [];
   const external = externalResult.data ?? [];
-  const completed = workouts.filter((item) => item.status === "complete").length + runs.filter((item) => item.status === "complete").length + external.filter((item) => item.matched_template_id).length;
   const plannedPerWeek = Math.max(1, plan?.sessions.filter((item) => item.kind !== "free" && item.kind !== "recovery").length ?? 1);
-  const adherence = Math.min(100, Math.round(completed / Math.max(plannedPerWeek * 4, 1) * 100));
+  const recent = calculateTrainerAdherence({
+    workouts: workouts.map((item) => ({ date: item.session_date, status: item.status })),
+    runs: runs.map((item) => ({ date: item.session_date, status: item.status })),
+    matchedExternalDates: external.filter((item) => item.matched_template_id).map((item) => item.start_date.slice(0, 10)),
+    followUpDates: (followUpsResult.data ?? []).map((item) => item.log_date),
+    plannedPerWeek,
+  });
 
   return jsonOk({
     profile: profileResult.data,
     health: healthResult.data ?? [],
     plan,
-    metrics: { workouts: workouts.length, runs: runs.length, followUps: followUpsResult.data?.length ?? 0, adherence },
+    metrics: {
+      workouts: recent.workoutCount,
+      runs: recent.runCount,
+      followUps: recent.followUpCount,
+      matchedExternal: recent.matchedExternalCount,
+      adherence: recent.percent,
+      windowDays: 28,
+    },
     calendar: [
       ...workouts.map((item) => ({ id: item.id, date: item.session_date, kind: "strength", status: item.status, source: item.source, label: item.template_id })),
       ...runs.map((item) => ({ id: item.id, date: item.session_date, kind: "run", status: item.status, source: item.source, label: "Corsa" })),
