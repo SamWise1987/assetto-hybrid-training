@@ -4,12 +4,16 @@ import Dexie, { type EntityTable } from "dexie";
 import type {
   ActivePrescription,
   AccountProfile,
+  AnalysisSuggestion,
+  AppNotification,
   AppSettings,
+  AthleteProfile,
   ClinicalSafetyProfile,
   CoachReview,
   DailyReadiness,
   DeloadDecision,
   Equipment,
+  ExternalWorkout,
   ExerciseDefinition,
   NextDayResponse,
   PlanAssignment,
@@ -17,6 +21,9 @@ import type {
   RunCalibrationDecision,
   RunPlan,
   RunSession,
+  RunningWorkoutTemplate,
+  HealthSyncState,
+  SyncQueueItem,
   TemplateCustomization,
   TrainingBlock,
   TrainingPlan,
@@ -37,6 +44,8 @@ import { undoRunCalibrationDecision } from "./run-calibration";
 import type { TrainingPlanRunSession } from "./types";
 import { getDay, subWeeks } from "date-fns";
 import { BLOCK, DEMO_SEED, EQUIPMENT, EXERCISES, PROFILE, TEMPLATES } from "./program";
+import { RUNNING_WORKOUT_TEMPLATES } from "@/data/running-workout-templates";
+import { isTemporalHealthDuplicate } from "./health-matching";
 
 const defaultSettings: AppSettings = {
   id: "app-settings",
@@ -66,6 +75,13 @@ export class AssettoDatabase extends Dexie {
   trainingPlans!: EntityTable<TrainingPlan, "id">;
   planAssignments!: EntityTable<PlanAssignment, "id">;
   accountProfiles!: EntityTable<AccountProfile, "id">;
+  athleteProfiles!: EntityTable<AthleteProfile, "id">;
+  externalWorkouts!: EntityTable<ExternalWorkout, "id">;
+  healthSyncStates!: EntityTable<HealthSyncState, "id">;
+  runningWorkoutTemplates!: EntityTable<RunningWorkoutTemplate, "id">;
+  analysisSuggestions!: EntityTable<AnalysisSuggestion, "id">;
+  notifications!: EntityTable<AppNotification, "id">;
+  syncQueue!: EntityTable<SyncQueueItem, "id">;
 
   constructor() {
     super("assetto-local-v1");
@@ -125,18 +141,116 @@ export class AssettoDatabase extends Dexie {
       planAssignments: "id, planId, athleteEmail, active",
       accountProfiles: "id, userId, email, role",
     });
+    this.version(4).stores({
+      profiles: "id, createdAt",
+      equipment: "id, kind",
+      safetyProfiles: "id",
+      blocks: "id, startDate, status",
+      exercises: "id, pattern, *muscleGroups",
+      templates: "id, dayOfWeek, kind",
+      workoutSessions: "id, date, templateId, status, syncedAt",
+      runs: "id, date, type, status, syncedAt",
+      readiness: "id, date",
+      nextDayResponses: "id, sessionId, date",
+      progressionDecisions: "id, exerciseId, date, action",
+      deloadDecisions: "id, date, scheduled",
+      activePrescriptions: "id, exerciseId, templateId",
+      runPlans: "id, date, dayOfWeek, week, status",
+      runCalibrationDecisions: "id, date, targetDate, rule",
+      appSettings: "id",
+      coachReviews: "id, date, week",
+      templateCustomizations: "id, templateId",
+      trainingPlans: "id, createdAt, createdBy",
+      planAssignments: "id, planId, athleteEmail, active",
+      accountProfiles: "id, userId, email, role",
+      athleteProfiles: "id, userId, updatedAt",
+      externalWorkouts: "id, externalId, source, kind, startDate, matchedTemplateId, syncedAt",
+      healthSyncStates: "id, platform, status, lastSuccessfulSyncAt",
+      runningWorkoutTemplates: "id, category, level, updatedAt",
+      analysisSuggestions: "id, athleteUserId, status, createdAt",
+      notifications: "id, recipientUserId, createdAt, readAt",
+      syncQueue: "id, entity, entityId, createdAt, attemptCount",
+    });
   }
 }
 
 export const db = new AssettoDatabase();
+
+const accountScopedTables = () => [
+  db.profiles,
+  db.safetyProfiles,
+  db.blocks,
+  db.workoutSessions,
+  db.runs,
+  db.readiness,
+  db.nextDayResponses,
+  db.progressionDecisions,
+  db.deloadDecisions,
+  db.activePrescriptions,
+  db.runPlans,
+  db.runCalibrationDecisions,
+  db.coachReviews,
+  db.templateCustomizations,
+  db.trainingPlans,
+  db.planAssignments,
+  db.accountProfiles,
+  db.athleteProfiles,
+  db.externalWorkouts,
+  db.healthSyncStates,
+  db.analysisSuggestions,
+  db.notifications,
+  db.syncQueue,
+];
+
+/** Rimuove soltanto cache e log appartenenti all'account autenticato. */
+export async function clearAccountScopedCache() {
+  const tables = accountScopedTables();
+  await db.transaction("rw", tables, async () => {
+    await Promise.all(tables.map((table) => table.clear()));
+  });
+}
+
+/**
+ * Impedisce che un secondo account erediti o sincronizzi la cache del primo.
+ * Il primo login conserva invece i dati legacy, che verranno migrati subito dopo.
+ */
+export async function prepareAccountCache(userId: string) {
+  const settings = await db.appSettings.get("app-settings");
+  if (!settings?.dataOwnerUserId) {
+    await db.appSettings.put({
+      ...(settings ?? defaultSettings),
+      dataOwnerUserId: userId,
+    });
+    return "legacy" as const;
+  }
+  if (settings.dataOwnerUserId === userId) return "same-account" as const;
+
+  await clearAccountScopedCache();
+  await db.appSettings.put({
+    id: "app-settings",
+    aiCoachEnabled: settings.aiCoachEnabled,
+    aiModel: settings.aiModel,
+    onboardingVersion: settings.onboardingVersion,
+    dataOwnerUserId: userId,
+  });
+  return "switched-account" as const;
+}
 
 export async function seedInitialData(options?: {
   name?: string;
   preferredGreeting?: import("./types").PreferredGreeting;
 }) {
   const today = new Date().toISOString().slice(0, 10);
-  await db.transaction("rw", db.tables, async () => {
-    await Promise.all(db.tables.map((table) => table.clear()));
+  const existingSettings = await db.appSettings.get("app-settings");
+  const resetTables = [
+    db.profiles, db.equipment, db.safetyProfiles, db.blocks, db.exercises, db.templates,
+    db.workoutSessions, db.runs, db.readiness, db.nextDayResponses, db.progressionDecisions,
+    db.deloadDecisions, db.activePrescriptions, db.runPlans, db.runCalibrationDecisions,
+    db.coachReviews, db.templateCustomizations, db.trainingPlans, db.planAssignments, db.appSettings,
+    db.runningWorkoutTemplates,
+  ];
+  await db.transaction("rw", resetTables, async () => {
+    await Promise.all(resetTables.map((table) => table.clear()));
     await db.profiles.add({
       ...PROFILE,
       name: options?.name?.trim() || "Atleta",
@@ -154,8 +268,8 @@ export async function seedInitialData(options?: {
     await db.exercises.bulkAdd(EXERCISES);
     await db.templates.bulkAdd(TEMPLATES);
     await db.runPlans.bulkAdd(seedRunPlansForWeek(1));
-    await db.appSettings.put(defaultSettings);
-    await db.trainingPlans.put(defaultTrainingPlan("initial"));
+    await db.appSettings.put({ ...defaultSettings, ...existingSettings });
+    await db.runningWorkoutTemplates.bulkPut(RUNNING_WORKOUT_TEMPLATES);
   });
 }
 
@@ -282,12 +396,20 @@ export async function completeWorkoutSession(session: WorkoutSession) {
     }
   });
 
+  await enqueueSync({ entity: "workout", entityId: session.id, operation: "upsert", payload: session as unknown as Record<string, unknown> });
+  import("./normalized-sync").then(({ flushSyncQueue }) => flushSyncQueue()).catch(() => undefined);
+
   return decisions;
 }
 
 export async function completeRunSession(run: RunSession) {
   await db.runs.put(run);
+  await enqueueSync({ entity: "run", entityId: run.id, operation: "upsert", payload: run as unknown as Record<string, unknown> });
+  import("./normalized-sync").then(({ flushSyncQueue }) => flushSyncQueue()).catch(() => undefined);
 
+  // Imported sources do not expose RPE, talk test or symptoms. They count for
+  // history/adherence but cannot safely drive the deterministic calibration.
+  if (run.subjectiveDataAvailable === false) return null;
   const day = getDay(new Date(`${run.date}T12:00:00`));
   if (day !== 2) return null;
 
@@ -325,7 +447,7 @@ export async function completeRunSession(run: RunSession) {
 export async function exportDatabase() {
   const result: Record<string, unknown[]> = {};
   for (const table of db.tables) result[table.name] = await table.toArray();
-  return { app: "RobertaFunctional", schemaVersion: 2, exportedAt: new Date().toISOString(), tables: result };
+  return { app: "RobertaFunctional", schemaVersion: 4, exportedAt: new Date().toISOString(), tables: result };
 }
 
 export async function importDatabase(payload: unknown) {
@@ -373,6 +495,8 @@ export async function applyCoachRunPlans(runSessions: TrainingPlanRunSession[]) 
       type: override.type,
       durationMinutes: override.durationMinutes,
       notes: override.notes ?? plan.notes,
+      workoutTemplateId: override.workoutTemplateId,
+      segments: override.segments,
       status: plan.status === "completed" ? "completed" : "planned",
     };
   });
@@ -410,7 +534,62 @@ export async function importExternalRun(run: RunSession) {
       .first();
     if (existing) return { run: existing, imported: false, calibration: null };
   }
+  const temporalMatch = await db.runs
+    .filter((entry) => entry.source === run.source
+      && entry.date === run.date
+      && Math.abs(entry.durationMinutes - run.durationMinutes) <= 2
+      && Math.abs((entry.distanceKm ?? 0) - (run.distanceKm ?? 0)) <= 0.15)
+    .first();
+  if (temporalMatch) return { run: temporalMatch, imported: false, calibration: null };
 
   const calibration = await completeRunSession(run);
   return { run, imported: true, calibration };
+}
+
+export async function importExternalWorkout(workout: ExternalWorkout) {
+  const existing = await db.externalWorkouts
+    .filter((entry) => entry.source === workout.source && entry.externalId === workout.externalId)
+    .first();
+  if (existing) return { workout: existing, imported: false };
+  const temporalMatch = await db.externalWorkouts
+    .filter((entry) => isTemporalHealthDuplicate(entry, workout))
+    .first();
+  if (temporalMatch) return { workout: temporalMatch, imported: false };
+
+  await db.externalWorkouts.put(workout);
+  await enqueueSync({ entity: "external_workout", entityId: workout.id, operation: "upsert", payload: workout as unknown as Record<string, unknown> });
+  return { workout, imported: true };
+}
+
+export async function matchExternalWorkout(workoutId: string, templateId: string) {
+  const workout = await db.externalWorkouts.get(workoutId);
+  if (!workout) throw new Error("Attività esterna non trovata.");
+  const matched = { ...workout, matchedTemplateId: templateId, matchedAt: new Date().toISOString() };
+  await db.externalWorkouts.put(matched);
+  await enqueueSync({ entity: "external_workout", entityId: matched.id, operation: "upsert", payload: matched as unknown as Record<string, unknown> });
+  import("./normalized-sync").then(({ flushSyncQueue }) => flushSyncQueue()).catch(() => undefined);
+  return matched;
+}
+
+export async function enqueueSync(item: Omit<SyncQueueItem, "id" | "createdAt" | "attemptCount">) {
+  const queued: SyncQueueItem = {
+    ...item,
+    id: crypto.randomUUID(),
+    createdAt: new Date().toISOString(),
+    attemptCount: 0,
+  };
+  if (item.entity === "profile") {
+    const olderProfileItems = await db.syncQueue.where("entity").equals("profile").primaryKeys();
+    if (olderProfileItems.length) await db.syncQueue.bulkDelete(olderProfileItems);
+  }
+  await db.syncQueue.put(queued);
+  return queued;
+}
+
+export async function markNotificationRead(id: string) {
+  const notification = await db.notifications.get(id);
+  if (!notification || notification.readAt) return notification;
+  const updated = { ...notification, readAt: new Date().toISOString() };
+  await db.notifications.put(updated);
+  return updated;
 }

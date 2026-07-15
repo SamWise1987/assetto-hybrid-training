@@ -16,6 +16,14 @@ const createSchema = z.object({
       kind: z.enum(["strength", "run", "recovery", "free"]),
       estimatedMinutes: z.number().int().min(0).max(300),
       notes: z.array(z.string()).optional(),
+      prescriptions: z.array(z.unknown()).optional(),
+      runConfig: z.object({
+        type: z.enum(["easy", "long-easy", "controlled-quality", "walk"]),
+        durationMinutes: z.number().int().min(1).max(300),
+        notes: z.array(z.string()).optional(),
+        workoutTemplateId: z.string().optional(),
+        segments: z.array(z.unknown()).optional(),
+      }).optional(),
     }),
   ).optional(),
 });
@@ -27,10 +35,12 @@ export async function GET(request: Request) {
   const client = staffClient(request);
   if (!client) return jsonError("Supabase non configurato.", 503);
 
-  const { data, error } = await client
+  let query = client
     .from("training_plans")
     .select("*")
     .order("updated_at", { ascending: false });
+  if (staff.role !== "admin") query = query.eq("created_by", staff.userId);
+  const { data, error } = await query;
 
   if (error) return jsonError(error.message, 500);
   return jsonOk({ plans: (data ?? []).map(mapRemotePlan) });
@@ -47,7 +57,7 @@ export async function POST(request: Request) {
   if (!client) return jsonError("Supabase non configurato.", 503);
 
   const fallback = defaultTrainingPlan(staff.userId);
-  const sessions: TrainingPlanSession[] = parsed.data.sessions ?? fallback.sessions;
+  const sessions = (parsed.data.sessions ?? fallback.sessions) as TrainingPlanSession[];
 
   const { data, error } = await client
     .from("training_plans")
@@ -61,5 +71,12 @@ export async function POST(request: Request) {
     .single();
 
   if (error) return jsonError(error.message, 500);
+  await client.from("plan_versions").insert({
+    plan_id: data.id,
+    version: 1,
+    snapshot: data as unknown as Database["public"]["Tables"]["plan_versions"]["Insert"]["snapshot"],
+    reason: "Creazione piano",
+    created_by: staff.userId,
+  });
   return jsonOk({ plan: mapRemotePlan(data) });
 }

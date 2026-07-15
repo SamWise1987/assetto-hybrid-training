@@ -11,6 +11,7 @@ test-results
 .env.*.local
 output
 tsconfig.tsbuildinfo
+supabase/.temp/
 
 # Capacitor build artifacts
 ios/App/Pods
@@ -29,3 +30,11 @@ android/captures
 *.ipa
 *.apk
 *.aab
+
+# Provider credentials and environment-specific native configuration
+android/app/google-services.json
+*firebase-adminsdk*.json
+service-account*.json
+AuthKey_*.p8
+.vercel
+.env*

@@ -9,7 +9,8 @@ import { canManagePlans } from "@/lib/roles";
 import { getRemoteAccessToken, syncAccountProfile } from "@/lib/remote-sync";
 import { EXERCISES, TEMPLATES } from "@/lib/program";
 import { getRunningExercises } from "@/lib/exercise-library";
-import type { ExercisePrescription, RunSession, TrainingPlan, TrainingPlanSession, UserRole } from "@/lib/types";
+import { RUNNING_WORKOUT_TEMPLATES } from "@/data/running-workout-templates";
+import type { ExercisePrescription, RunningWorkoutSegment, RunSession, TrainingPlan, TrainingPlanSession, UserRole } from "@/lib/types";
 import { Button, Field, Surface } from "../ui";
 
 const DAYS = ["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"];
@@ -45,6 +46,8 @@ function sessionsToRunSessions(sessions: TrainingPlanSession[]) {
       type: session.runConfig!.type,
       durationMinutes: session.runConfig!.durationMinutes,
       notes: session.runConfig!.notes,
+      workoutTemplateId: session.runConfig!.workoutTemplateId,
+      segments: session.runConfig!.segments,
     }));
 }
 
@@ -58,7 +61,10 @@ interface StaffUser {
 
 export function CoachScreen() {
   const account = useLiveQuery(() => db.accountProfiles.toCollection().first());
-  const localPlans = useLiveQuery(() => db.trainingPlans.orderBy("updatedAt").reverse().toArray()) ?? [];
+  const localPlans = useLiveQuery(async () => {
+    const plans = await db.trainingPlans.toArray();
+    return plans.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+  }, [], []);
   const [selectedPlanId, setSelectedPlanId] = useState<string>("");
   const [sessions, setSessions] = useState<TrainingPlanSession[]>([]);
   const [planName, setPlanName] = useState("Piano personalizzato");
@@ -71,6 +77,9 @@ export function CoachScreen() {
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
   const [roleEmail, setRoleEmail] = useState("");
   const [roleValue, setRoleValue] = useState<UserRole>("coach");
+  const [runSearch, setRunSearch] = useState("");
+  const [runLevel, setRunLevel] = useState<"all" | "beginner" | "intermediate" | "advanced">("all");
+  const [runCategory, setRunCategory] = useState<"all" | import("@/lib/types").RunningWorkoutTemplate["category"]>("all");
 
   const resolvedTemplates = useLiveQuery(() => getResolvedTemplates(), [], []);
 
@@ -102,7 +111,6 @@ export function CoachScreen() {
       setSessions(enrichSessions(fallback.sessions));
       return;
     }
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional form reset from live query
     setSelectedPlanId(plan.id);
     setPlanName(plan.name);
     setSessions(enrichSessions(plan.sessions));
@@ -119,6 +127,13 @@ export function CoachScreen() {
       </div>
     );
   }
+
+  const visibleRunningWorkouts = RUNNING_WORKOUT_TEMPLATES.filter((template) => {
+    const matchesLevel = runLevel === "all" || template.level === runLevel;
+    const matchesCategory = runCategory === "all" || template.category === runCategory;
+    const haystack = `${template.name} ${template.objective} ${template.category}`.toLowerCase();
+    return matchesLevel && matchesCategory && haystack.includes(runSearch.trim().toLowerCase());
+  });
 
   const updateSessionName = (templateId: string, displayName: string) => {
     setSessions(sessions.map((session) => (session.templateId === templateId ? { ...session, displayName } : session)));
@@ -160,6 +175,24 @@ export function CoachScreen() {
         };
       }),
     );
+  };
+
+  const updateRunSegment = (templateId: string, segmentId: string, patch: Partial<RunningWorkoutSegment>) => {
+    const session = sessions.find((item) => item.templateId === templateId);
+    if (!session?.runConfig?.segments) return;
+    updateRunConfig(templateId, { segments: session.runConfig.segments.map((segment) => segment.id === segmentId ? { ...segment, ...patch } : segment) });
+  };
+
+  const removeRunSegment = (templateId: string, segmentId: string) => {
+    const session = sessions.find((item) => item.templateId === templateId);
+    if (!session?.runConfig?.segments) return;
+    updateRunConfig(templateId, { segments: session.runConfig.segments.filter((segment) => segment.id !== segmentId) });
+  };
+
+  const addRunSegment = (templateId: string) => {
+    const session = sessions.find((item) => item.templateId === templateId);
+    if (!session?.runConfig) return;
+    updateRunConfig(templateId, { segments: [...(session.runConfig.segments ?? []), { id: crypto.randomUUID(), phase: "work", durationSeconds: 300, targetRpe: [3, 4], instructions: "Nuovo segmento" }] });
   };
 
   const promoteRole = async () => {
@@ -461,6 +494,27 @@ export function CoachScreen() {
                 ) : null}
                 {expandedSession === session.templateId && session.kind === "run" && session.runConfig ? (
                   <div className="prescription-editor">
+                    <div className="dashboard-form"><Field label="Cerca workout corsa" value={runSearch} onChange={(event) => setRunSearch(event.target.value)} /><label className="field"><span>Livello</span><select value={runLevel} onChange={(event) => setRunLevel(event.target.value as typeof runLevel)}><option value="all">Tutti</option><option value="beginner">Base</option><option value="intermediate">Intermedio</option><option value="advanced">Avanzato</option></select></label><label className="field"><span>Obiettivo</span><select value={runCategory} onChange={(event) => setRunCategory(event.target.value as typeof runCategory)}><option value="all">Tutti</option><option value="easy">Facile</option><option value="long">Lungo</option><option value="tempo">Tempo</option><option value="intervals">Intervalli</option><option value="hills">Salite</option><option value="recovery">Recupero</option></select></label></div>
+                    <label className="field">
+                      <span>Workout dalla libreria</span>
+                      <select
+                        value={session.runConfig.workoutTemplateId ?? ""}
+                        onChange={(e) => {
+                          const template = RUNNING_WORKOUT_TEMPLATES.find((item) => item.id === e.target.value);
+                          if (!template) return;
+                          updateRunConfig(session.templateId, {
+                            workoutTemplateId: template.id,
+                            durationMinutes: template.estimatedMinutes,
+                            segments: template.segments.map((segment) => ({ ...segment, id: crypto.randomUUID() })),
+                            notes: [template.objective, ...template.safetyNotes],
+                            type: template.category === "long" ? "long-easy" : template.category === "easy" || template.category === "recovery" ? "easy" : "controlled-quality",
+                          });
+                        }}
+                      >
+                        <option value="">Configurazione manuale</option>
+                        {visibleRunningWorkouts.map((template) => <option key={template.id} value={template.id}>{template.name} · {template.level}</option>)}
+                      </select>
+                    </label>
                     <label className="field">
                       <span>Tipo corsa</span>
                       <select
@@ -485,6 +539,23 @@ export function CoachScreen() {
                         updateRunConfig(session.templateId, { durationMinutes: Number(e.target.value) })
                       }
                     />
+                    <div className="run-segment-editor">
+                      {session.runConfig.segments?.map((segment, index) => <article key={segment.id}>
+                        <div className="surface-heading"><strong>Segmento {index + 1}</strong><Button variant="ghost" onClick={() => removeRunSegment(session.templateId, segment.id)}>Rimuovi</Button></div>
+                        <div className="dashboard-form">
+                          <label className="field"><span>Fase</span><select value={segment.phase} onChange={(event) => updateRunSegment(session.templateId, segment.id, { phase: event.target.value as RunningWorkoutSegment["phase"] })}><option value="warmup">Riscaldamento</option><option value="work">Lavoro</option><option value="recovery">Recupero</option><option value="cooldown">Defaticamento</option></select></label>
+                          <Field label="Ripetizioni" type="number" min="1" value={segment.repeats ?? ""} onChange={(event) => updateRunSegment(session.templateId, segment.id, { repeats: event.target.value ? Math.max(1, Number(event.target.value)) : undefined })} />
+                          <Field label="Durata (secondi)" type="number" min="0" value={segment.durationSeconds ?? ""} onChange={(event) => updateRunSegment(session.templateId, segment.id, { durationSeconds: event.target.value ? Math.max(0, Number(event.target.value)) : undefined })} />
+                          <Field label="Distanza (metri)" type="number" min="0" value={segment.distanceMeters ?? ""} onChange={(event) => updateRunSegment(session.templateId, segment.id, { distanceMeters: event.target.value ? Math.max(0, Number(event.target.value)) : undefined })} />
+                          <Field label="RPE minimo" type="number" min="1" max="10" value={segment.targetRpe?.[0] ?? ""} onChange={(event) => updateRunSegment(session.templateId, segment.id, { targetRpe: [Math.max(1, Math.min(10, Number(event.target.value))), segment.targetRpe?.[1] ?? 4] })} />
+                          <Field label="RPE massimo" type="number" min="1" max="10" value={segment.targetRpe?.[1] ?? ""} onChange={(event) => updateRunSegment(session.templateId, segment.id, { targetRpe: [segment.targetRpe?.[0] ?? 3, Math.max(1, Math.min(10, Number(event.target.value)))] })} />
+                          <Field label="Ritmo target" value={segment.targetPace ?? ""} onChange={(event) => updateRunSegment(session.templateId, segment.id, { targetPace: event.target.value || undefined })} />
+                          <Field label="Zona FC" value={segment.targetHeartRateZone ?? ""} onChange={(event) => updateRunSegment(session.templateId, segment.id, { targetHeartRateZone: event.target.value || undefined })} />
+                        </div>
+                        <Field label="Istruzioni" value={segment.instructions} onChange={(event) => updateRunSegment(session.templateId, segment.id, { instructions: event.target.value })} />
+                      </article>)}
+                      <Button variant="ghost" onClick={() => addRunSegment(session.templateId)}>Aggiungi segmento</Button>
+                    </div>
                   </div>
                 ) : null}
               </div>

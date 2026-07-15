@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type AppTab = "today" | "calendar" | "progress" | "exercises" | "coach" | "settings";
+export type AppTab = "today" | "calendar" | "progress" | "analysis" | "exercises" | "clients" | "coach" | "inbox" | "settings";
 
 interface PlanNotice {
   planName: string;

@@ -13,14 +13,15 @@ export function ProgressScreen() {
   const decisions = useLiveQuery(() => db.progressionDecisions.orderBy("date").reverse().toArray()) ?? [];
   const runCalibrations = useLiveQuery(() => db.runCalibrationDecisions.orderBy("date").reverse().toArray()) ?? [];
   const coachReview = useLiveQuery(() => db.coachReviews.orderBy("date").last());
-  const workouts = useLiveQuery(() => db.workoutSessions.toArray()) ?? [];
-  const runs = useLiveQuery(() => db.runs.toArray()) ?? [];
-  const readiness = useLiveQuery(() => db.readiness.toArray()) ?? [];
+  const workouts = useLiveQuery(() => db.workoutSessions.toArray(), [], []);
+  const runs = useLiveQuery(() => db.runs.toArray(), [], []);
+  const readiness = useLiveQuery(() => db.readiness.toArray(), [], []);
+  const matchedExternalCount = useLiveQuery(() => db.externalWorkouts.filter((item) => Boolean(item.matchedTemplateId)).count()) ?? 0;
   const blockWeek = useLiveQuery(() => getActiveBlockWeek(), [], 1);
 
   const summary = useMemo(
-    () => buildProgressSummary({ workouts, runs, readiness, blockWeek }),
-    [workouts, runs, readiness, blockWeek],
+    () => buildProgressSummary({ workouts, runs, readiness, blockWeek, matchedExternalCount }),
+    [workouts, runs, readiness, blockWeek, matchedExternalCount],
   );
   const weeksLogged = countRecentWeeksWithData(workouts, runs);
 
@@ -46,7 +47,7 @@ export function ProgressScreen() {
         </Surface>
       ) : null}
 
-      <ChartSurface title="Volume per pattern" icon={<TrendingUp />}>
+      <ChartSurface title="Volume per pattern" icon={<TrendingUp />} description={summary.volumeByPattern.length ? summary.volumeByPattern.map((item) => `${item.pattern}: ${item.sets} serie`).join("; ") : "Nessun volume registrato."}>
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={summary.volumeByPattern}>
             <CartesianGrid vertical={false} stroke="#263a47" />
@@ -58,7 +59,7 @@ export function ProgressScreen() {
         </ResponsiveContainer>
       </ChartSurface>
 
-      <ChartSurface title="Corsa facile e qualità" icon={<Activity />}>
+      <ChartSurface title="Corsa facile e qualità" icon={<Activity />} description={summary.runWeekly.length ? `Andamento su ${summary.runWeekly.length} settimane, distinto tra corsa facile e qualità.` : "Nessuna corsa registrata."}>
         <ResponsiveContainer width="100%" height={220}>
           <AreaChart data={summary.runWeekly}>
             <CartesianGrid vertical={false} stroke="#263a47" />
@@ -71,7 +72,7 @@ export function ProgressScreen() {
         </ResponsiveContainer>
       </ChartSurface>
 
-      <ChartSurface title="Energia, dolore e RIR" icon={<Activity />}>
+      <ChartSurface title="Energia, dolore e RIR" icon={<Activity />} description={summary.recoveryWeekly.length ? `Andamento di energia, RIR e sintomi su ${summary.recoveryWeekly.length} settimane.` : "Nessun dato di recupero registrato."}>
         <ResponsiveContainer width="100%" height={220}>
           <LineChart data={summary.recoveryWeekly}>
             <CartesianGrid vertical={false} stroke="#263a47" />
@@ -149,11 +150,12 @@ export function ProgressScreen() {
   );
 }
 
-function ChartSurface({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
+function ChartSurface({ title, icon, description, children }: { title: string; icon: React.ReactNode; description: string; children: React.ReactNode }) {
   return (
     <Surface className="chart-surface">
       <div className="surface-heading"><h2>{title}</h2>{icon}</div>
-      {children}
+      <div role="img" aria-label={description}>{children}</div>
+      <p className="supporting-copy">{description}</p>
     </Surface>
   );
 }

@@ -5,6 +5,8 @@ export type SessionKind = "strength" | "run" | "recovery" | "free";
 export type DecisionAction = "progress" | "maintain" | "reduce" | "substitute" | "stop";
 
 export type UserRole = "admin" | "coach" | "athlete";
+export type PlatformSource = "web" | "ios" | "android";
+export type WorkoutDataSource = "app" | "apple_health" | "health_connect" | "gpx" | "strava";
 
 export interface AccountProfile {
   id: Id;
@@ -13,6 +15,33 @@ export interface AccountProfile {
   displayName: string;
   role: UserRole;
   updatedAt: string;
+}
+
+export interface AthleteProfile {
+  id: Id;
+  userId: Id;
+  displayName: string;
+  birthYear?: number;
+  primaryGoal: string;
+  secondaryGoals: string[];
+  trainingDays: number[];
+  equipment: string[];
+  limitations: string[];
+  onboardingCompletedAt?: string;
+  healthOnboardingSkippedAt?: string;
+  consentAcceptedAt?: string;
+  consentVersion?: string;
+  updatedAt: string;
+}
+
+export interface TrainerClient {
+  id: Id;
+  trainerUserId: Id;
+  athleteUserId?: Id;
+  athleteEmail: string;
+  status: "invited" | "active" | "archived";
+  invitedAt: string;
+  acceptedAt?: string;
 }
 
 export interface TemplateCustomization {
@@ -41,6 +70,8 @@ export interface TrainingPlanRunSession {
   type: RunSession["type"];
   durationMinutes: number;
   notes?: string[];
+  workoutTemplateId?: Id;
+  segments?: RunningWorkoutSegment[];
 }
 
 export interface TrainingPlanSession {
@@ -55,6 +86,8 @@ export interface TrainingPlanSession {
     type: RunSession["type"];
     durationMinutes: number;
     notes?: string[];
+    workoutTemplateId?: Id;
+    segments?: RunningWorkoutSegment[];
   };
 }
 
@@ -67,6 +100,117 @@ export interface ConnectedService {
   connectedAt: string;
   lastSyncAt?: string;
   scopes?: string[];
+}
+
+export type ExternalWorkoutKind = "run" | "walk" | "strength" | "other";
+
+export interface ExternalWorkout {
+  id: Id;
+  userId?: Id;
+  externalId: string;
+  source: Exclude<WorkoutDataSource, "app">;
+  platform: PlatformSource;
+  workoutType: string;
+  kind: ExternalWorkoutKind;
+  startDate: string;
+  endDate: string;
+  durationMinutes: number;
+  distanceKm?: number;
+  caloriesKcal?: number;
+  averageHeartRate?: number;
+  maxHeartRate?: number;
+  sourceName?: string;
+  matchedTemplateId?: Id;
+  matchedAt?: string;
+  importedAt: string;
+  syncedAt?: string;
+}
+
+export interface HealthSyncState {
+  id: Id;
+  userId?: Id;
+  platform: PlatformSource;
+  status: "never" | "syncing" | "success" | "denied" | "error";
+  lastAttemptAt?: string;
+  lastSuccessfulSyncAt?: string;
+  lastImportedCount: number;
+  lastSkippedCount: number;
+  errorMessage?: string;
+}
+
+export interface RunningWorkoutSegment {
+  id: Id;
+  phase: "warmup" | "work" | "recovery" | "cooldown";
+  repeats?: number;
+  durationSeconds?: number;
+  distanceMeters?: number;
+  targetRpe?: [number, number];
+  targetPace?: string;
+  targetHeartRateZone?: string;
+  instructions: string;
+}
+
+export interface RunningWorkoutTemplate {
+  id: Id;
+  name: string;
+  category: "easy" | "long" | "tempo" | "intervals" | "hills" | "recovery";
+  level: "beginner" | "intermediate" | "advanced";
+  objective: string;
+  estimatedMinutes: number;
+  safetyNotes: string[];
+  segments: RunningWorkoutSegment[];
+  createdBy?: Id;
+  updatedAt: string;
+}
+
+export interface PlanVersion {
+  id: Id;
+  planId: Id;
+  version: number;
+  snapshot: TrainingPlan;
+  reason: string;
+  createdBy: Id;
+  createdAt: string;
+}
+
+export type SuggestionStatus = "proposed" | "approved" | "modified" | "applied" | "rejected" | "undone";
+
+export interface AnalysisSuggestion {
+  id: Id;
+  athleteUserId: Id;
+  title: string;
+  rationale: string;
+  evidence: string[];
+  proposedChange: Record<string, unknown>;
+  status: SuggestionStatus;
+  createdAt: string;
+  reviewedAt?: string;
+  reviewedBy?: Id;
+}
+
+export interface AppNotification {
+  id: Id;
+  recipientUserId?: Id;
+  actorUserId?: Id;
+  type: "invite" | "plan_assigned" | "plan_updated" | "suggestion" | "workout_completed" | "run_completed" | "follow_up" | "safety" | "sync_error" | "health_issue";
+  title: string;
+  body: string;
+  href?: string;
+  entityType?: string;
+  entityId?: string;
+  createdAt: string;
+  readAt?: string;
+}
+
+export interface SyncQueueItem {
+  id: Id;
+  entity: "profile" | "workout" | "run" | "external_workout" | "readiness" | "follow_up";
+  entityId: Id;
+  operation: "upsert" | "delete";
+  payload: Record<string, unknown>;
+  createdAt: string;
+  attemptCount: number;
+  lastError?: string;
 }
 
 export interface PlanAssignment {
@@ -212,6 +356,11 @@ export interface WorkoutSession {
   modifiedExerciseIds: Id[];
   skippedExerciseIds: Id[];
   generalFeeling?: "better" | "same" | "worse";
+  source?: WorkoutDataSource;
+  platform?: PlatformSource;
+  deviceName?: string;
+  externalWorkoutId?: Id;
+  syncedAt?: string;
 }
 
 export interface RunSession {
@@ -227,11 +376,16 @@ export interface RunSession {
   maxHeartRate?: number;
   talkTest: "full-sentences" | "short-phrases" | "failed";
   symptomsDuring: number;
+  /** False when an external source did not provide RPE, talk test or symptoms. */
+  subjectiveDataAvailable?: boolean;
   symptomsNextDay?: number;
   conversionReason?: string;
   source?: RunSessionSource;
+  platform?: PlatformSource;
+  deviceName?: string;
   externalId?: string;
   elevationGainM?: number;
+  syncedAt?: string;
 }
 
 export interface NextDayResponse {
@@ -284,6 +438,8 @@ export interface RunPlan {
   status: "planned" | "completed" | "calibrated";
   sourceRunId?: Id;
   notes?: string[];
+  workoutTemplateId?: Id;
+  segments?: RunningWorkoutSegment[];
 }
 
 export interface RunCalibrationDecision {
@@ -306,6 +462,9 @@ export interface AppSettings {
   lastCoachReviewAt?: string;
   stravaConnected?: boolean;
   lastStravaSyncAt?: string;
+  localDataMigratedForUserId?: string;
+  dataOwnerUserId?: string;
+  onboardingVersion?: number;
 }
 
 export interface CoachReview {

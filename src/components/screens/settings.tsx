@@ -17,10 +17,9 @@ import {
   buildTrainingSnapshot,
   deterministicCoachReview,
 } from "@/lib/ai-coach";
-import { clearDatabase, db, exportDatabase, exportHistoryCsv, getActiveBlockWeek, importDatabase } from "@/lib/db";
+import { clearAccountScopedCache, clearDatabase, db, enqueueSync, exportDatabase, exportHistoryCsv, getActiveBlockWeek, importDatabase } from "@/lib/db";
 import {
   cloudSyncAvailable,
-  getRemoteAccessToken,
   getRemoteUserEmail,
   pullSnapshotFromCloud,
   pushSnapshotToCloud,
@@ -86,24 +85,12 @@ export function SettingsScreen() {
     });
     setProfileDraft({ name: nextName, greeting });
     if (account && syncEnabled) {
-      try {
-        const token = await getRemoteAccessToken();
-        if (token) {
-          await fetch("/api/me", {
-            method: "PATCH",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ displayName: nextName }),
-          });
-          await syncAccountProfile().catch(() => undefined);
-        }
-      } catch {
-        // Local profile still saved.
-      }
+      await enqueueSync({ entity: "profile", entityId: account.userId, operation: "upsert", payload: { displayName: nextName, baseUpdatedAt: account.updatedAt } });
+      const { flushSyncQueue } = await import("@/lib/normalized-sync");
+      await flushSyncQueue();
+      if (!(await db.syncQueue.where("entity").equals("profile").count())) await syncAccountProfile().catch(() => undefined);
     }
-    setStatus("Profilo aggiornato.");
+    setStatus(await db.syncQueue.where("entity").equals("profile").count() ? "Profilo salvato sul dispositivo e in attesa di sincronizzazione." : "Profilo aggiornato su tutti i dispositivi.");
   };
 
   const exportJson = async () => {
@@ -210,10 +197,17 @@ export function SettingsScreen() {
   };
 
   const logout = async () => {
-    await signOutRemote();
-    await db.accountProfiles.clear();
-    setRemoteEmail(null);
-    setStatus("Disconnesso.");
+    try {
+      const { flushSyncQueue } = await import("@/lib/normalized-sync");
+      await flushSyncQueue();
+      if (await db.syncQueue.count()) throw new Error("Ci sono modifiche offline non ancora sincronizzate. Riprova quando torna la connessione.");
+      await signOutRemote();
+      await clearAccountScopedCache();
+      setRemoteEmail(null);
+      setStatus("Disconnesso. La cache locale dell’account è stata rimossa.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Disconnessione non riuscita.");
+    }
   };
 
   const pushCloud = async () => {

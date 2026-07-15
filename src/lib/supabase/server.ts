@@ -44,6 +44,6 @@ export function backendStatus() {
     ),
     openai: Boolean(process.env.OPENAI_API_KEY),
     strava: Boolean(process.env.STRAVA_CLIENT_ID && process.env.STRAVA_CLIENT_SECRET),
-    schemaVersion: 3,
+    schemaVersion: 4,
   };
 }

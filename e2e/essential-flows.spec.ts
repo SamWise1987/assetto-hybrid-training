@@ -1,63 +1,33 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
-async function onboard(page: Page) {
+test("login account-first, recupero password e layout responsive", async ({ page }, testInfo) => {
+  const runtimeErrors: string[] = [];
+  page.on("pageerror", (error) => runtimeErrors.push(error.message));
+
   await page.goto("/");
-  await page.locator('[data-hydrated="true"]').waitFor();
-  if (await page.getByRole("heading", { name: /Il tuo piano/ }).isVisible().catch(() => false)) {
-    await page.getByLabel(/Ho compreso che RobertaFunctional/).check();
-    await page.getByRole("button", { name: "Crea il mio piano" }).click();
-  }
-  await expect(page.getByRole("heading", { name: "Forza A" })).toBeVisible();
-}
+  await expect(page).toHaveTitle(/RobertaFunctional/);
+  await expect(page.getByRole("heading", { name: "Il tuo allenamento, ovunque." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Bentornato/a" })).toBeVisible();
+  await expect(page.getByLabel("Email")).toBeVisible();
+  await expect(page.getByLabel("Password")).toBeVisible();
+  await expect(page.getByText(/account vengono creati su invito/i)).toBeVisible();
 
-test("onboarding e creazione del piano", async ({ page }) => {
+  await page.getByRole("button", { name: "Hai dimenticato la password?" }).click();
+  await expect(page.getByRole("heading", { name: "Recupera password" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Invia link" })).toBeVisible();
+  await page.getByRole("button", { name: "Torna all’accesso" }).click();
+  await expect(page.getByRole("button", { name: "Accedi" })).toBeVisible();
+
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(1);
+  expect(runtimeErrors).toEqual([]);
+  await page.screenshot({ path: `/tmp/roberta-login-${testInfo.project.name}.png`, fullPage: true });
+});
+
+test("navigazione da tastiera mantiene un focus visibile", async ({ page }) => {
   await page.goto("/");
-  await page.locator('[data-hydrated="true"]').waitFor();
-  await expect(page.getByRole("heading", { name: /Il tuo piano si adatta/ })).toBeVisible();
-  await page.getByLabel(/Ho compreso che RobertaFunctional/).check();
-  await page.getByRole("button", { name: "Crea il mio piano" }).click();
-  await expect(page.getByRole("heading", { name: "Forza A" })).toBeVisible();
-});
-
-test("completamento di una seduta di forza", async ({ page }) => {
-  await onboard(page);
-  await page.getByRole("button", { name: /Inizia check-in/ }).click();
-  await page.getByRole("button", { name: "Conferma e continua" }).click();
-  await page.getByRole("button", { name: /Vai alla seduta/ }).click();
-  await page.getByRole("button", { name: /Conferma serie/ }).click();
-  await page.getByRole("button", { name: "Termina" }).click();
-  await page.getByRole("button", { name: "Completa seduta" }).click();
-  await expect(page.getByText("Seduta registrata")).toBeVisible();
-});
-
-test("registrazione della risposta il giorno seguente", async ({ page }) => {
-  await onboard(page);
-  await page.getByRole("button", { name: /Risposta nelle 24 ore/ }).click();
-  await page.getByRole("button", { name: "Registra risposta" }).click();
-  await expect(page.getByText(/Il motore potrà valutarla/)).toBeVisible();
-});
-
-test("modifica automatica spiegata e annullabile", async ({ page }) => {
-  await onboard(page);
-  await page.getByRole("button", { name: "Progressi" }).click();
-  await expect(page.getByRole("heading", { name: "Modifiche automatiche" })).toBeVisible();
-  await expect(page.getByText(/due esposizioni solide/i).first()).toBeVisible();
-  await page.getByRole("button", { name: "Annulla modifica" }).first().click();
-  await expect(page.getByText("Annullata").first()).toBeVisible();
-});
-
-test("registrazione di una corsa", async ({ page }) => {
-  await onboard(page);
-  await page.getByRole("button", { name: "Calendario" }).click();
-  await page.getByRole("button", { name: "Registra una corsa" }).click();
-  await page.getByRole("button", { name: /Salva corsa/ }).click();
-  await expect(page.getByRole("button", { name: "Registra una corsa" })).toBeVisible();
-});
-
-test("esportazione JSON", async ({ page }) => {
-  await onboard(page);
-  await page.getByRole("button", { name: "Impostazioni" }).click();
-  const download = page.waitForEvent("download");
-  await page.getByRole("button", { name: /Esporta database JSON/ }).click();
-  expect((await download).suggestedFilename()).toMatch(/roberta-functional-backup-.*\.json/);
+  await page.keyboard.press("Tab");
+  await expect(page.locator(":focus")).toBeVisible();
+  const outline = await page.locator(":focus").evaluate((element) => getComputedStyle(element).outlineStyle);
+  expect(outline).not.toBe("none");
 });

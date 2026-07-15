@@ -1,0 +1,19 @@
+ios/
+android/
+www/
+audit-current-flow/
+e2e/
+playwright-report/
+test-results/
+coverage/
+supabase/.temp/
+.env*
+*.p8
+*firebase-adminsdk*.json
+service-account*.json
+design-concept-mobile.png
+package.json.bak
+* 2.*
+* 3.*
+* 4.*
+* 5.*

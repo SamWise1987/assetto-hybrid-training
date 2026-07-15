@@ -104,7 +104,7 @@ function SchedaPanel({
 export function TodayScreen() {
   const profile = useLiveQuery(() => db.profiles.toCollection().first());
   const account = useLiveQuery(() => db.accountProfiles.toCollection().first());
-  const activePrescriptions = useLiveQuery(() => db.activePrescriptions.toArray(), [], []) ?? [];
+  const activePrescriptions = useLiveQuery(() => db.activePrescriptions.toArray(), [], []);
   const resolvedTemplates = useLiveQuery(() => getResolvedTemplates(), [], TEMPLATES) ?? TEMPLATES;
   const latestDecision = useLiveQuery(() => db.progressionDecisions.orderBy("date").last());
   const latestRunCalibration = useLiveQuery(() => db.runCalibrationDecisions.orderBy("date").last());

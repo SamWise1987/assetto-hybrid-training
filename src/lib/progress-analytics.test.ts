@@ -58,5 +58,7 @@ describe("buildProgressSummary", () => {
     expect(summary.weeksLogged).toBeGreaterThan(0);
     expect(summary.runWeekly[0]?.distance).toBe(6);
     expect(summary.adherencePercent).toBeGreaterThan(0);
+    const withMatchedHealth = buildProgressSummary({ workouts, runs, readiness: [], blockWeek: 2, matchedExternalCount: 1 });
+    expect(withMatchedHealth.adherencePercent).toBeGreaterThan(summary.adherencePercent);
   });
 });

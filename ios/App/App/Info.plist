@@ -2,6 +2,15 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.robertafunctional.app</string>
+			</array>
+		</dict>
+	</array>
     <key>CAPACITOR_DEBUG</key>
 	<string>$(CAPACITOR_DEBUG)</string>
 	<key>CFBundleDevelopmentRegion</key>
@@ -32,6 +41,10 @@
 	<array>
 		<string>armv7</string>
 	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
@@ -48,7 +61,7 @@
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 	<key>NSHealthShareUsageDescription</key>
-	<string>RobertaFunctional legge le tue corse e camminate da Apple Salute per aggiornare il piano di allenamento.</string>
+	<string>RobertaFunctional legge i tuoi allenamenti di corsa, camminata e forza da Apple Salute per aggiornare il diario e il piano di allenamento.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>RobertaFunctional scrive dati salute solo se lo richiedi esplicitamente.</string>
 </dict>
