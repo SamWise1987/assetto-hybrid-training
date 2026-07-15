@@ -2,6 +2,7 @@ import { z } from "zod";
 import { jsonError, jsonOk } from "@/lib/api-utils";
 import { getRemoteUserProfile, staffClient } from "@/lib/supabase/profiles";
 import type { Database } from "@/lib/supabase/client";
+import { sanitizeErrorContext, sanitizeErrorMessage } from "@/lib/error-sanitizer";
 
 const schema = z.object({
   subsystem: z.enum(["api", "sync", "health", "notifications", "ui", "pwa"]),
@@ -21,8 +22,8 @@ export async function POST(request: Request) {
     user_id: profile.userId,
     subsystem: parsed.data.subsystem,
     severity: parsed.data.severity,
-    message: parsed.data.message,
-    context: parsed.data.context as Database["public"]["Tables"]["app_error_events"]["Insert"]["context"],
+    message: sanitizeErrorMessage(parsed.data.message, parsed.data.subsystem),
+    context: sanitizeErrorContext(parsed.data.context) as Database["public"]["Tables"]["app_error_events"]["Insert"]["context"],
     platform: parsed.data.platform,
     app_version: process.env.NEXT_PUBLIC_APP_VERSION ?? "1.0.0",
   });

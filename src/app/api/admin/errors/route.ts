@@ -1,5 +1,6 @@
 import { jsonError, jsonOk } from "@/lib/api-utils";
 import { getRemoteUserProfile, staffClient } from "@/lib/supabase/profiles";
+import { sanitizeErrorMessage } from "@/lib/error-sanitizer";
 
 export async function GET(request: Request) {
   const profile = await getRemoteUserProfile(request);
@@ -7,5 +8,8 @@ export async function GET(request: Request) {
   const client = staffClient(request); if (!client) return jsonError("Supabase non configurato.", 503);
   const { data, error } = await client.from("app_error_events").select("id,subsystem,severity,message,platform,created_at").order("created_at", { ascending: false }).limit(100);
   if (error) return jsonError(error.message, 500);
-  return jsonOk({ events: data ?? [] });
+  return jsonOk({ events: (data ?? []).map((event) => ({
+    ...event,
+    message: sanitizeErrorMessage(event.message, event.subsystem),
+  })) });
 }
