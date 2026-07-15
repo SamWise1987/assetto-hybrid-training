@@ -1,12 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { applySuggestionToPlan, canTransitionSuggestion } from "./analysis-suggestions";
+import { applySuggestionToPlan, canTransitionSuggestion, suggestionPatchIsUnchanged } from "./analysis-suggestions";
 
 describe("analysis suggestion lifecycle", () => {
   it("allows reviewed transitions and prevents reopening a closed suggestion", () => {
     expect(canTransitionSuggestion("proposed", "approved")).toBe(true);
     expect(canTransitionSuggestion("approved", "applied")).toBe(true);
+    expect(canTransitionSuggestion("modified", "applied")).toBe(false);
     expect(canTransitionSuggestion("applied", "undone")).toBe(true);
     expect(canTransitionSuggestion("rejected", "applied")).toBe(false);
+  });
+
+  it("persists content edits when a modified suggestion is edited again", () => {
+    expect(suggestionPatchIsUnchanged("modified", "modified", true)).toBe(false);
+    expect(suggestionPatchIsUnchanged("modified", "modified", false)).toBe(true);
+    expect(suggestionPatchIsUnchanged("approved", "approved", true)).toBe(true);
   });
 
   it("applies a bounded running duration change without mutating the original", () => {

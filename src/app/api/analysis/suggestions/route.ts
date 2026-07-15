@@ -3,7 +3,7 @@ import { jsonError, jsonOk } from "@/lib/api-utils";
 import { getRemoteUserProfile, staffClient } from "@/lib/supabase/profiles";
 import type { Database } from "@/lib/supabase/client";
 import { dispatchPush } from "@/lib/push-server";
-import { applySuggestionToPlan, canTransitionSuggestion } from "@/lib/analysis-suggestions";
+import { applySuggestionToPlan, canTransitionSuggestion, suggestionPatchIsUnchanged } from "@/lib/analysis-suggestions";
 import type { SuggestionStatus, TrainingPlanSession } from "@/lib/types";
 import { notificationDedupeKey } from "@/lib/notification-events";
 
@@ -52,7 +52,12 @@ export async function PATCH(request: Request) {
   const client = staffClient(request); if (!client) return jsonError("Supabase non configurato.", 503);
   const { data: currentSuggestion, error: suggestionError } = await client.from("analysis_suggestions").select("*").eq("id", parsed.data.id).single();
   if (suggestionError || !currentSuggestion) return jsonError(suggestionError?.message ?? "Suggerimento non trovato.", 404);
-  if (currentSuggestion.status === parsed.data.status) return jsonOk({ suggestion: currentSuggestion, unchanged: true });
+  const hasContentEdits = parsed.data.title !== undefined
+    || parsed.data.rationale !== undefined
+    || parsed.data.proposedChange !== undefined;
+  if (suggestionPatchIsUnchanged(currentSuggestion.status as SuggestionStatus, parsed.data.status, hasContentEdits)) {
+    return jsonOk({ suggestion: currentSuggestion, unchanged: true });
+  }
   if (!canTransitionSuggestion(currentSuggestion.status as SuggestionStatus, parsed.data.status)) return jsonError(`Transizione ${currentSuggestion.status} → ${parsed.data.status} non consentita.`, 409);
 
   const proposedChange = parsed.data.proposedChange ?? (currentSuggestion.proposed_change as Record<string, unknown>);

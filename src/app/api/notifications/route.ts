@@ -19,7 +19,13 @@ export async function PATCH(request: Request) {
   if (!parsed.success) return jsonError("Notifica non valida.");
   const client = staffClient(request);
   if (!client) return jsonError("Supabase non configurato.", 503);
-  const { error } = await client.from("app_notifications").update({ read_at: new Date().toISOString() }).eq("id", parsed.data.id).eq("recipient_user_id", profile.userId);
+  const { data, error } = await client.from("app_notifications")
+    .update({ read_at: new Date().toISOString() })
+    .eq("id", parsed.data.id)
+    .eq("recipient_user_id", profile.userId)
+    .select("id")
+    .maybeSingle();
   if (error) return jsonError(error.message, 500);
+  if (!data) return jsonError("Notifica non trovata.", 404);
   return jsonOk({ read: true });
 }
