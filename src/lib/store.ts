@@ -4,7 +4,9 @@ export type AppTab = "today" | "calendar" | "progress" | "analysis" | "exercises
 
 interface PlanNotice {
   planName: string;
-  assignedAt: string;
+  changedAt: string;
+  kind: "assigned" | "updated";
+  reason?: string;
 }
 
 interface AppState {

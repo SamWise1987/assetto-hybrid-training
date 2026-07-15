@@ -63,6 +63,9 @@ export interface TrainingPlan {
   createdBy: Id;
   createdAt: string;
   updatedAt: string;
+  version?: number;
+  changeReason?: string;
+  versionCreatedAt?: string;
 }
 
 export interface TrainingPlanRunSession {

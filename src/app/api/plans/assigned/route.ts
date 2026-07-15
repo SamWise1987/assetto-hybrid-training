@@ -21,11 +21,10 @@ export async function GET(request: Request) {
   if (error) return jsonError(error.message, 500);
   if (!assignment) return jsonOk({ assignment: null, plan: null });
 
-  const { data: planRow } = await client
-    .from("training_plans")
-    .select("*")
-    .eq("id", assignment.plan_id)
-    .single();
+  const [{ data: planRow }, { data: planVersion }] = await Promise.all([
+    client.from("training_plans").select("*").eq("id", assignment.plan_id).single(),
+    client.from("plan_versions").select("version,reason,created_at").eq("plan_id", assignment.plan_id).order("version", { ascending: false }).limit(1).maybeSingle(),
+  ]);
 
   if (planRow) {
     const service = createServiceSupabaseClient();
@@ -63,6 +62,16 @@ export async function GET(request: Request) {
       assignedAt: assignment.assigned_at,
       active: assignment.active,
     },
-    plan: planRow ? mapRemotePlan(planRow) : null,
+    plan: planRow ? {
+      ...mapRemotePlan(planRow),
+      version: planVersion?.version,
+      changeReason: planVersion?.reason,
+      versionCreatedAt: planVersion?.created_at,
+    } : null,
+    planVersion: planVersion ? {
+      version: planVersion.version,
+      reason: planVersion.reason,
+      createdAt: planVersion.created_at,
+    } : null,
   });
 }

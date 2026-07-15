@@ -8,10 +8,10 @@ const MIN_REFRESH_INTERVAL_MS = 5_000;
 
 export function CloudRefreshManager({
   enabled,
-  onNewPlan,
+  onPlanChange,
 }: {
   enabled: boolean;
-  onNewPlan: (plan: TrainingPlan, assignment: PlanAssignment | null) => void;
+  onPlanChange: (plan: TrainingPlan, assignment: PlanAssignment | null, change: "assigned" | "updated", reason?: string) => void;
 }) {
   const inFlightRef = useRef(false);
   const lastRefreshAtRef = useRef(0);
@@ -29,8 +29,8 @@ export function CloudRefreshManager({
       lastRefreshAtRef.current = now;
       try {
         const result = await refreshAthleteCloudState();
-        if (result.assignedPlan?.isNew && result.assignedPlan.plan) {
-          onNewPlan(result.assignedPlan.plan, result.assignedPlan.assignment);
+        if (result.assignedPlan?.change && result.assignedPlan.plan) {
+          onPlanChange(result.assignedPlan.plan, result.assignedPlan.assignment, result.assignedPlan.change, result.assignedPlan.reason);
         }
       } finally {
         inFlightRef.current = false;
@@ -48,7 +48,7 @@ export function CloudRefreshManager({
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("online", onOnline);
     };
-  }, [enabled, onNewPlan]);
+  }, [enabled, onPlanChange]);
 
   return null;
 }
