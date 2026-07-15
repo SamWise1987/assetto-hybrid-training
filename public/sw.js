@@ -1,6 +1,13 @@
-const SHELL_CACHE = "roberta-functional-shell-v4";
-const RUNTIME_CACHE = "roberta-functional-runtime-v4";
+const CACHE_VERSION = "v5";
+const SHELL_CACHE = `roberta-functional-shell-${CACHE_VERSION}`;
+const RUNTIME_CACHE = `roberta-functional-runtime-${CACHE_VERSION}`;
 const APP_SHELL = ["/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
+
+async function cacheSuccessfulResponse(cacheName, request, response) {
+  if (!response.ok) return;
+  const cache = await caches.open(cacheName);
+  await cache.put(request, response.clone());
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(SHELL_CACHE).then((cache) => cache.addAll(APP_SHELL)));
@@ -12,9 +19,11 @@ self.addEventListener("message", (event) => {
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((key) => ![SHELL_CACHE, RUNTIME_CACHE].includes(key)).map((key) => caches.delete(key)))),
+    Promise.all([
+      caches.keys().then((keys) => Promise.all(keys.filter((key) => ![SHELL_CACHE, RUNTIME_CACHE].includes(key)).map((key) => caches.delete(key)))),
+      self.clients.claim(),
+    ]),
   );
-  self.clients.claim();
 });
 
 self.addEventListener("fetch", (event) => {
@@ -31,18 +40,16 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (isDocument) {
-    event.respondWith(fetch(event.request).then((response) => {
-      const copy = response.clone();
-      caches.open(RUNTIME_CACHE).then((cache) => cache.put(event.request, copy));
+    event.respondWith(fetch(event.request).then(async (response) => {
+      await cacheSuccessfulResponse(RUNTIME_CACHE, event.request, response);
       return response;
     }).catch(async () => (await caches.match(event.request)) || (await caches.match("/"))));
     return;
   }
 
   if (isNextAsset) {
-    event.respondWith(caches.match(event.request).then((cached) => cached || fetch(event.request).then((response) => {
-      const copy = response.clone();
-      caches.open(RUNTIME_CACHE).then((cache) => cache.put(event.request, copy));
+    event.respondWith(caches.match(event.request).then((cached) => cached || fetch(event.request).then(async (response) => {
+      await cacheSuccessfulResponse(RUNTIME_CACHE, event.request, response);
       return response;
     })));
     return;
@@ -50,9 +57,8 @@ self.addEventListener("fetch", (event) => {
 
   if (isAppShellAsset) {
     event.respondWith(
-      caches.match(event.request).then((cached) => cached || fetch(event.request).then((response) => {
-        const copy = response.clone();
-        caches.open(SHELL_CACHE).then((cache) => cache.put(event.request, copy));
+      caches.match(event.request).then((cached) => cached || fetch(event.request).then(async (response) => {
+        await cacheSuccessfulResponse(SHELL_CACHE, event.request, response);
         return response;
       })),
     );
@@ -71,5 +77,16 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  event.waitUntil(self.clients.openWindow(event.notification.data?.href ?? "/?tab=inbox"));
+  const requested = new URL(event.notification.data?.href ?? "/?tab=inbox", self.location.origin);
+  const targetUrl = requested.origin === self.location.origin
+    ? requested.href
+    : new URL("/?tab=inbox", self.location.origin).href;
+  event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (clients) => {
+    const existing = clients.find((client) => new URL(client.url).origin === self.location.origin);
+    if (existing) {
+      if ("navigate" in existing) await existing.navigate(targetUrl);
+      return existing.focus();
+    }
+    return self.clients.openWindow(targetUrl);
+  }));
 });
