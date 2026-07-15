@@ -7,7 +7,7 @@ import { dispatchPush } from "@/lib/push-server";
 import { notificationDedupeKey } from "@/lib/notification-events";
 
 const itemSchema = z.object({
-  entity: z.enum(["profile", "workout", "run", "external_workout", "readiness", "follow_up"]),
+  entity: z.enum(["profile", "workout", "run", "external_workout", "readiness", "follow_up", "notification_read"]),
   entityId: z.string().min(1).max(220),
   payload: z.record(z.string(), z.unknown()),
 });
@@ -34,6 +34,17 @@ export async function POST(request: Request) {
       const { error } = await service.from("user_roles").update({ display_name: displayName }).eq("user_id", profile.userId);
       if (error) return jsonError(error.message, 500);
       await service.from("athlete_profiles").update({ display_name: displayName }).eq("user_id", profile.userId);
+    } else if (item.entity === "notification_read") {
+      const payload = item.payload as Record<string, unknown>;
+      const readAt = typeof payload.readAt === "string" && !Number.isNaN(Date.parse(payload.readAt))
+        ? payload.readAt
+        : new Date().toISOString();
+      const { error } = await client
+        .from("app_notifications")
+        .update({ read_at: readAt })
+        .eq("id", item.entityId)
+        .eq("recipient_user_id", profile.userId);
+      if (error) return jsonError(error.message, 500);
     } else if (item.entity === "workout") {
       const payload = item.payload as Record<string, unknown>;
       const { data: inserted, error } = await client.from("training_session_logs").upsert({

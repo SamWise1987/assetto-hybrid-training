@@ -1,50 +1,29 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import { useLiveQuery } from "dexie-react-hooks";
 import { ArrowRight, Bell, CheckCheck } from "lucide-react";
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
-import { getRemoteAccessToken } from "@/lib/remote-sync";
 import type { AppNotification } from "@/lib/types";
 import { Button, EmptyState, Surface } from "../ui";
 import { enablePushNotifications } from "@/lib/push-client";
-import { db } from "@/lib/db";
+import { db, markNotificationRead } from "@/lib/db";
+import { flushSyncQueue } from "@/lib/normalized-sync";
 import { reportAppError } from "@/lib/error-monitor";
 import { notificationHrefForTab, notificationTabFromHref } from "@/lib/notification-routing";
 import { useAppStore } from "@/lib/store";
 
 export function InboxScreen() {
-  const [items, setItems] = useState<AppNotification[]>([]);
+  const items = useLiveQuery(() => db.notifications.orderBy("createdAt").reverse().toArray(), [], []);
   const [pushStatus, setPushStatus] = useState("");
   const setTab = useAppStore((state) => state.setTab);
-  const load = useCallback(async () => {
-    const token = await getRemoteAccessToken(); if (!token) return;
-    const response = await fetch("/api/notifications", { headers: { Authorization: `Bearer ${token}` } });
-    if (!response.ok) return;
-    const body = await response.json() as { notifications: Array<{ id: string; recipient_user_id: string; type: AppNotification["type"]; title: string; body: string; href: string | null; created_at: string; read_at: string | null }> };
-    setItems(body.notifications.map((item) => ({ id: item.id, recipientUserId: item.recipient_user_id, type: item.type, title: item.title, body: item.body, href: item.href ?? undefined, createdAt: item.created_at, readAt: item.read_at ?? undefined })));
-  }, []);
-
-  useEffect(() => {
-    const timeout = window.setTimeout(() => { load().catch(() => undefined); }, 0);
-    const client = createBrowserSupabaseClient();
-    const channel = client?.channel("app-notifications").on("postgres_changes", { event: "*", schema: "public", table: "app_notifications" }, () => load()).subscribe();
-    return () => {
-      window.clearTimeout(timeout);
-      if (client && channel) client.removeChannel(channel);
-    };
-  }, [load]);
-
   const markRead = async (id: string) => {
-    const readAt = new Date().toISOString();
-    await db.notifications.update(id, { readAt });
-    setItems((current) => current.map((item) => item.id === id ? { ...item, readAt } : item));
-    const token = await getRemoteAccessToken(); if (!token) return;
-    await fetch("/api/notifications", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ id }) });
+    await markNotificationRead(id);
+    await flushSyncQueue();
   };
 
   const openNotification = (item: AppNotification) => {
     if (!item.readAt) markRead(item.id).catch((error) => reportAppError("notifications", error).catch(() => undefined));
-    const targetTab = notificationTabFromHref(item.href);
+    const targetTab = notificationTabFromHref(item.href, window.location.origin);
     if (!targetTab) return;
     setTab(targetTab);
     window.history.pushState({}, "", notificationHrefForTab(targetTab));
