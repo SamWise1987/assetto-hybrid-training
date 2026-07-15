@@ -71,4 +71,15 @@ describe("offline normalized cache", () => {
     expect(queued).toHaveLength(1);
     expect(queued[0].payload.displayName).toBe("Secondo");
   });
+
+  it("mantiene una sola conferma di lettura per ogni notifica", async () => {
+    const { db, enqueueSync } = database;
+    await enqueueSync({ entity: "notification_read", entityId: "notice-1", operation: "upsert", payload: { readAt: "2026-07-15T10:00:00.000Z" } });
+    await enqueueSync({ entity: "notification_read", entityId: "notice-1", operation: "upsert", payload: { readAt: "2026-07-15T10:01:00.000Z" } });
+    await enqueueSync({ entity: "notification_read", entityId: "notice-2", operation: "upsert", payload: { readAt: "2026-07-15T10:02:00.000Z" } });
+
+    const queued = await db.syncQueue.where("entity").equals("notification_read").sortBy("entityId");
+    expect(queued).toHaveLength(2);
+    expect(queued[0].payload.readAt).toBe("2026-07-15T10:01:00.000Z");
+  });
 });

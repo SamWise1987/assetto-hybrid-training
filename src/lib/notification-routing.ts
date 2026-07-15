@@ -16,11 +16,14 @@ const NOTIFICATION_TABS = new Set<AppTab>([
  * Converte esclusivamente deep link interni dell'app in una tab nota.
  * URL esterni o valori non riconosciuti non devono poter pilotare la shell.
  */
-export function notificationTabFromHref(href?: string): AppTab | null {
+export function notificationTabFromHref(href?: string, currentOrigin = "https://app.robertafunctional.local"): AppTab | null {
   if (!href) return null;
   try {
-    const url = new URL(href, "https://app.robertafunctional.local");
-    if (url.origin !== "https://app.robertafunctional.local") return null;
+    const base = new URL(currentOrigin);
+    const url = new URL(href, base);
+    const isCapacitorLink = url.protocol === "com.robertafunctional.app:";
+    const isInternalWebLink = (url.protocol === "http:" || url.protocol === "https:") && url.origin === base.origin;
+    if (!isCapacitorLink && !isInternalWebLink) return null;
     const tab = url.searchParams.get("tab") as AppTab | null;
     return tab && NOTIFICATION_TABS.has(tab) ? tab : null;
   } catch {

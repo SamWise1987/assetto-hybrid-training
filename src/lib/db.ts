@@ -578,9 +578,11 @@ export async function enqueueSync(item: Omit<SyncQueueItem, "id" | "createdAt" |
     createdAt: new Date().toISOString(),
     attemptCount: 0,
   };
-  if (item.entity === "profile") {
-    const olderProfileItems = await db.syncQueue.where("entity").equals("profile").primaryKeys();
-    if (olderProfileItems.length) await db.syncQueue.bulkDelete(olderProfileItems);
+  if (item.entity === "profile" || item.entity === "notification_read") {
+    const olderItems = item.entity === "profile"
+      ? await db.syncQueue.where("entity").equals("profile").primaryKeys()
+      : (await db.syncQueue.where("entity").equals("notification_read").filter((queuedItem) => queuedItem.entityId === item.entityId).toArray()).map((queuedItem) => queuedItem.id);
+    if (olderItems.length) await db.syncQueue.bulkDelete(olderItems);
   }
   await db.syncQueue.put(queued);
   return queued;
@@ -589,7 +591,9 @@ export async function enqueueSync(item: Omit<SyncQueueItem, "id" | "createdAt" |
 export async function markNotificationRead(id: string) {
   const notification = await db.notifications.get(id);
   if (!notification || notification.readAt) return notification;
-  const updated = { ...notification, readAt: new Date().toISOString() };
+  const readAt = new Date().toISOString();
+  const updated = { ...notification, readAt };
   await db.notifications.put(updated);
+  await enqueueSync({ entity: "notification_read", entityId: id, operation: "upsert", payload: { readAt } });
   return updated;
 }

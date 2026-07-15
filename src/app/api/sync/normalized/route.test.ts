@@ -14,7 +14,7 @@ vi.mock("@/lib/supabase/profiles", () => ({
 vi.mock("@/lib/supabase/server", () => ({ createServiceSupabaseClient: vi.fn() }));
 vi.mock("@/lib/push-server", () => ({ dispatchPush: vi.fn() }));
 
-import { GET } from "./route";
+import { GET, POST } from "./route";
 
 const athleteId = "22222222-2222-4222-8222-222222222222";
 
@@ -43,5 +43,36 @@ describe("GET /api/sync/normalized", () => {
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual({ error: "Cliente non assegnato a questo trainer." });
     expect(mocks.verifyActiveTrainerClient).toHaveBeenCalledWith(expect.anything(), "second-coach-id", athleteId);
+  });
+});
+
+describe("POST /api/sync/normalized", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getRemoteUserProfile.mockResolvedValue({ userId: athleteId, role: "athlete" });
+  });
+
+  it("sincronizza la lettura soltanto per il destinatario autenticato", async () => {
+    const finalEq = vi.fn(async () => ({ error: null }));
+    const firstEq = vi.fn(() => ({ eq: finalEq }));
+    const update = vi.fn(() => ({ eq: firstEq }));
+    const from = vi.fn(() => ({ update }));
+    mocks.staffClient.mockReturnValue({ from });
+
+    const response = await POST(new Request("http://localhost/api/sync/normalized", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: [{
+        entity: "notification_read",
+        entityId: "notice-1",
+        payload: { readAt: "2026-07-15T12:00:00.000Z" },
+      }] }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(from).toHaveBeenCalledWith("app_notifications");
+    expect(update).toHaveBeenCalledWith({ read_at: "2026-07-15T12:00:00.000Z" });
+    expect(firstEq).toHaveBeenCalledWith("id", "notice-1");
+    expect(finalEq).toHaveBeenCalledWith("recipient_user_id", athleteId);
   });
 });

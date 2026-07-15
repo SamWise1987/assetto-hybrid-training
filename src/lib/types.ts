@@ -207,7 +207,7 @@ export interface AppNotification {
 
 export interface SyncQueueItem {
   id: Id;
-  entity: "profile" | "workout" | "run" | "external_workout" | "readiness" | "follow_up";
+  entity: "profile" | "workout" | "run" | "external_workout" | "readiness" | "follow_up" | "notification_read";
   entityId: Id;
   operation: "upsert" | "delete";
   payload: Record<string, unknown>;

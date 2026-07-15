@@ -29,6 +29,7 @@ import type { AppNotification, PlanAssignment, TrainingPlan } from "@/lib/types"
 import { ErrorMonitor } from "./error-monitor";
 import { ConsentConfirmation } from "./consent-confirmation";
 import { CloudRefreshManager } from "./cloud-refresh-manager";
+import { notificationHrefForTab, notificationTabFromHref } from "@/lib/notification-routing";
 
 const athleteTabs: { id: AppTab; label: string; icon: typeof Home }[] = [
   { id: "today", label: "Oggi", icon: Home },
@@ -68,6 +69,13 @@ export function AssettoApp() {
   const handlePlanChange = useCallback((plan: TrainingPlan, assignment: PlanAssignment | null, kind: "assigned" | "updated", reason?: string) => {
     setPlanNotice({ planName: plan.name, changedAt: assignment?.assignedAt ?? plan.versionCreatedAt ?? new Date().toISOString(), kind, reason });
   }, [setPlanNotice]);
+  const openInternalHref = useCallback((href?: string) => {
+    const requestedTab = notificationTabFromHref(href, window.location.origin);
+    if (!requestedTab) return false;
+    setTab(requestedTab);
+    window.history.pushState({}, "", notificationHrefForTab(requestedTab));
+    return true;
+  }, [setTab]);
 
   useEffect(() => {
     getRemoteSession().then((session) => setAuthState(session ? "authenticated" : "anonymous"));
@@ -116,9 +124,7 @@ export function AssettoApp() {
     let remove: (() => void) | undefined;
     import("@capacitor/app").then(async ({ App }) => {
       const listener = await App.addListener("appUrlOpen", async ({ url }) => {
-        const parsed = new URL(url);
-        const requestedTab = parsed.searchParams.get("tab") as AppTab | null;
-        if (requestedTab && ["today", "calendar", "progress", "analysis", "exercises", "clients", "coach", "inbox", "settings"].includes(requestedTab)) setTab(requestedTab);
+        openInternalHref(url);
         const authType = getRemoteAuthCallbackParams(url).get("type");
         if (await consumeRemoteAuthCallback(url).catch(() => false)) {
           if (authType === "invite" || authType === "recovery") setPasswordSetup(true);
@@ -128,7 +134,7 @@ export function AssettoApp() {
       remove = () => { listener.remove(); };
     }).catch(() => undefined);
     return () => remove?.();
-  }, [setTab]);
+  }, [openInternalHref]);
 
   useEffect(() => {
     if (authState !== "authenticated") return;
@@ -137,7 +143,11 @@ export function AssettoApp() {
       const response = await fetch("/api/notifications", { headers: { Authorization: `Bearer ${token}` } });
       if (!response.ok) return;
       const body = await response.json() as { notifications: Array<{ id: string; recipient_user_id: string; actor_user_id: string | null; type: AppNotification["type"]; title: string; body: string; href: string | null; entity_type: string | null; entity_id: string | null; created_at: string; read_at: string | null }> };
-      await db.notifications.bulkPut(body.notifications.map((item) => ({ id: item.id, recipientUserId: item.recipient_user_id, actorUserId: item.actor_user_id ?? undefined, type: item.type, title: item.title, body: item.body, href: item.href ?? undefined, entityType: item.entity_type ?? undefined, entityId: item.entity_id ?? undefined, createdAt: item.created_at, readAt: item.read_at ?? undefined })));
+      const pendingReads = new Map(
+        (await db.syncQueue.where("entity").equals("notification_read").toArray())
+          .map((queuedItem) => [queuedItem.entityId, typeof queuedItem.payload.readAt === "string" ? queuedItem.payload.readAt : undefined] as const),
+      );
+      await db.notifications.bulkPut(body.notifications.map((item) => ({ id: item.id, recipientUserId: item.recipient_user_id, actorUserId: item.actor_user_id ?? undefined, type: item.type, title: item.title, body: item.body, href: item.href ?? undefined, entityType: item.entity_type ?? undefined, entityId: item.entity_id ?? undefined, createdAt: item.created_at, readAt: item.read_at ?? pendingReads.get(item.id) })));
     };
     const timeout = window.setTimeout(() => { load().catch(() => undefined); }, 0);
     const client = createBrowserSupabaseClient();
@@ -150,13 +160,12 @@ export function AssettoApp() {
     import("@capacitor/push-notifications").then(async ({ PushNotifications }) => {
       const listener = await PushNotifications.addListener("pushNotificationActionPerformed", ({ notification }) => {
         const href = typeof notification.data?.href === "string" ? notification.data.href : "/?tab=inbox";
-        const requestedTab = new URL(href, window.location.origin).searchParams.get("tab") as AppTab | null;
-        if (requestedTab && ["today", "calendar", "progress", "analysis", "exercises", "clients", "coach", "inbox", "settings"].includes(requestedTab)) setTab(requestedTab);
+        openInternalHref(href);
       });
       remove = () => { listener.remove(); };
     }).catch(() => undefined);
     return () => remove?.();
-  }, [setTab]);
+  }, [openInternalHref]);
 
   if (authState === "loading" || (authState === "authenticated" && !bootstrapDone) || profile === null || athleteProfile === null) {
     return <div className="loading-screen" role="status">Caricamento account…</div>;
