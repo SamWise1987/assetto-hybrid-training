@@ -86,7 +86,7 @@ export function AssettoApp() {
     if (authState !== "authenticated") return;
     const bootstrap = async () => {
       const remoteProfile = await syncAccountProfile().catch(() => null);
-      if (remoteProfile) await migrateLocalDataForAccount(remoteProfile.userId).catch(() => undefined);
+      if (remoteProfile?.role === "athlete") await migrateLocalDataForAccount(remoteProfile.userId).catch(() => undefined);
       if (remoteProfile?.role === "athlete") {
         const result = await refreshAthleteCloudState();
         if (result.assignedPlan?.change && result.assignedPlan.plan) {

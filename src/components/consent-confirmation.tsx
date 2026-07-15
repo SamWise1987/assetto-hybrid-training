@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { db } from "@/lib/db";
 import { ONBOARDING_CONSENT_VERSION } from "@/lib/consent";
-import { getRemoteAccessToken } from "@/lib/remote-sync";
+import { getRemoteAccessToken, migrateLocalDataForAccount } from "@/lib/remote-sync";
+import { reportAppError } from "@/lib/error-monitor";
 import { Button } from "./ui";
 
 export function ConsentConfirmation() {
@@ -28,6 +29,8 @@ export function ConsentConfirmation() {
       const current = await db.athleteProfiles.get("athlete-profile");
       if (!current) throw new Error("Profilo atleta locale non disponibile.");
       await db.athleteProfiles.put({ ...current, consentAcceptedAt: result.consentAcceptedAt, consentVersion: result.consentVersion ?? ONBOARDING_CONSENT_VERSION, updatedAt: new Date().toISOString() });
+      await migrateLocalDataForAccount(current.userId, { consentAccepted: true })
+        .catch((error) => reportAppError("sync", error, { operation: "local-data-migration" }));
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Salvataggio del consenso non riuscito.");
     } finally {
