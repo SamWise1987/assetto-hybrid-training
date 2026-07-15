@@ -58,7 +58,7 @@ add("iOS Remote notifications", infoPlist.includes("remote-notification"), "UIBa
 add("iOS Push entitlement", entitlements.includes("aps-environment"), "aps-environment");
 add("iOS HealthKit entitlement", entitlements.includes("com.apple.developer.healthkit"), "HealthKit");
 
-for (const migration of ["004_platform_foundation.sql", "005_privacy_hardening.sql", "006_notification_idempotency.sql", "007_onboarding_consent.sql"]) {
+for (const migration of ["004_platform_foundation.sql", "005_privacy_hardening.sql", "006_notification_idempotency.sql", "007_onboarding_consent.sql", "008_pending_plan_activation_notification.sql"]) {
   add(`Migrazione ${migration.slice(0, 3)}`, existsSync(resolve(root, "supabase/migrations", migration)), migration);
 }
 
