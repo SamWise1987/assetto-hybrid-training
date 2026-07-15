@@ -83,6 +83,31 @@ test("la web app aggiorna le attività Health quando torna visibile", async ({ p
   await expect(page.getByText(/2 attività · ultimo dato/)).toBeVisible();
 });
 
+test("il cliente può disattivare le push del dispositivo senza perdere l'inbox", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Il controllo Web Push è indipendente dal breakpoint.");
+  await installSession(page, athleteId, "alex@example.com");
+  await page.addInitScript(() => localStorage.setItem("assetto-device-id", "device-e2e"));
+  await mockPlatformApi(page, "athlete");
+  await page.unroute("**/api/push/register");
+  let removedPayload: unknown;
+  await page.route("**/api/push/register", async (route) => {
+    if (route.request().method() === "DELETE") {
+      removedPayload = route.request().postDataJSON();
+      return route.fulfill({ json: { removed: true } });
+    }
+    return route.fulfill({ json: { subscriptions: [{ platform: "web", device_id: "device-e2e" }], webPushConfigured: true } });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: /Avvisi/ }).click();
+  await expect(page.getByRole("button", { name: "Disattiva notifiche" })).toBeVisible();
+  await page.getByRole("button", { name: "Disattiva notifiche" }).click();
+
+  await expect(page.getByText(/Notifiche push disattivate su questo dispositivo/)).toBeVisible();
+  expect(removedPayload).toEqual({ platform: "web", deviceId: "device-e2e" });
+  await expect(page.getByText("Il tuo piano è stato aggiornato")).toBeVisible();
+});
+
 test("il cliente riceve versione e motivazione quando il trainer aggiorna lo stesso piano", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "La sincronizzazione piano è indipendente dal breakpoint.");
   await installSession(page, athleteId, "alex@example.com");

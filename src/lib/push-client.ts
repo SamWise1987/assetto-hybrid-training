@@ -13,7 +13,51 @@ function vapidKey(value: string) {
 async function registerPayload(payload: Record<string, unknown>) {
   const token = await getRemoteAccessToken(); if (!token) throw new Error("Accesso richiesto.");
   const response = await fetch("/api/push/register", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(payload) });
-  if (!response.ok) throw new Error("Registrazione notifiche non riuscita.");
+  if (!response.ok) {
+    const body = await response.json().catch(() => null) as { error?: string } | null;
+    throw new Error(body?.error ?? "Registrazione notifiche non riuscita.");
+  }
+}
+
+function currentPlatform() {
+  return Capacitor.isNativePlatform() ? Capacitor.getPlatform() as "ios" | "android" : "web" as const;
+}
+
+export async function getPushNotificationStatus() {
+  const token = await getRemoteAccessToken(); if (!token) throw new Error("Accesso richiesto.");
+  const platform = currentPlatform();
+  const deviceId = getOrCreateDeviceId();
+  const response = await fetch("/api/push/register", { headers: { Authorization: `Bearer ${token}` } });
+  if (!response.ok) throw new Error("Stato notifiche non disponibile.");
+  const body = await response.json() as { subscriptions?: Array<{ platform: string; device_id: string }> };
+  return {
+    enabled: (body.subscriptions ?? []).some((item) => item.platform === platform && item.device_id === deviceId),
+    platform,
+  };
+}
+
+export async function disablePushNotifications() {
+  const token = await getRemoteAccessToken(); if (!token) throw new Error("Accesso richiesto.");
+  const platform = currentPlatform();
+  const deviceId = getOrCreateDeviceId();
+  const response = await fetch("/api/push/register", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ platform, deviceId }),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => null) as { error?: string } | null;
+    throw new Error(body?.error ?? "Disattivazione notifiche non riuscita.");
+  }
+  if (Capacitor.isNativePlatform()) {
+    const { PushNotifications } = await import("@capacitor/push-notifications");
+    await PushNotifications.unregister().catch(() => undefined);
+  } else if ("serviceWorker" in navigator) {
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+    await subscription?.unsubscribe().catch(() => false);
+  }
+  return platform;
 }
 
 export async function enablePushNotifications() {
@@ -22,7 +66,7 @@ export async function enablePushNotifications() {
     const { PushNotifications } = await import("@capacitor/push-notifications");
     const permission = await PushNotifications.requestPermissions();
     if (permission.receive !== "granted") throw new Error("Permesso notifiche non concesso.");
-    const platform = Capacitor.getPlatform() as "ios" | "android";
+    const platform = currentPlatform() as "ios" | "android";
     const nativeToken = await new Promise<string>((resolve, reject) => {
       let settled = false;
       let timer = 0;
