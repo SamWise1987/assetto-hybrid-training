@@ -120,10 +120,19 @@ export function AnalysisScreen({ staff = false, admin = false }: { staff?: boole
 
   const matchWorkout = async (workoutId: string, templateId: string) => {
     if (!templateId) return;
-    await matchExternalWorkout(workoutId, templateId);
-    const token = await getRemoteAccessToken();
-    if (!token) return;
-    await fetch("/api/external-workouts", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ id: workoutId, templateId }) });
+    try {
+      await matchExternalWorkout(workoutId, templateId);
+      const token = await getRemoteAccessToken();
+      if (!token) {
+        setMessage("Attività associata sul dispositivo. La sincronizzazione avverrà al prossimo accesso online.");
+        return;
+      }
+      const response = await fetch("/api/external-workouts", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ id: workoutId, templateId }) });
+      const body = await response.json().catch(() => ({})) as { error?: string };
+      setMessage(response.ok ? "Attività associata alla scheda e sincronizzata." : body.error ?? "Associazione salvata sul dispositivo, ma non ancora sincronizzata.");
+    } catch {
+      setMessage("Non è stato possibile associare questa attività.");
+    }
   };
 
   const strengthSessions = plans.flatMap((plan) => plan.sessions.filter((session) => session.kind === "strength"));
@@ -133,6 +142,7 @@ export function AnalysisScreen({ staff = false, admin = false }: { staff?: boole
   }
 
   return <div className="screen-stack analysis-screen"><header className="section-heading"><p className="date-label">Dati e decisioni</p><h1>Analisi</h1><p>Riepilogo separato dalle impostazioni, con fonti visibili e suggerimenti controllati dal trainer.</p></header>
+    {!staff && message ? <p role="status">{message}</p> : null}
     {staff ? <Surface><div className="surface-heading"><div><p className="date-label">Decisione assistita</p><h2>{editingSuggestionId ? "Modifica il suggerimento" : "Proponi un miglioramento"}</h2></div><Sparkles /></div><label className="field"><span>Cliente</span><select value={selectedAthlete} onChange={(event) => setSelectedAthlete(event.target.value)} disabled={Boolean(editingSuggestionId)}><option value="">Seleziona</option>{clients.map((client) => <option key={client.athlete_user_id ?? client.athlete_email} value={client.athlete_user_id ?? ""}>{client.account?.display_name ?? client.athlete_email}</option>)}</select></label><label className="field"><span>Titolo</span><input value={title} onChange={(event) => setTitle(event.target.value)} /></label><label className="field"><span>Motivazione visibile al cliente</span><textarea value={rationale} onChange={(event) => setRationale(event.target.value)} /></label><label className="field"><span>Nota da applicare al piano (facoltativa)</span><textarea value={planDescription} onChange={(event) => setPlanDescription(event.target.value)} /></label><label className="field"><span>Variazione durata corse (%)</span><input type="number" min="-30" max="30" value={runDurationPercent} onChange={(event) => setRunDurationPercent(Math.max(-30, Math.min(30, Number(event.target.value))))} /></label><div className="button-row"><Button onClick={submitSuggestion} disabled={!selectedAthlete || title.length < 2 || rationale.length < 3}>{editingSuggestionId ? "Salva modifica" : "Salva proposta"}</Button>{editingSuggestionId ? <Button variant="ghost" onClick={() => { setEditingSuggestionId(null); setTitle(""); setRationale(""); setPlanDescription(""); setRunDurationPercent(0); }}>Annulla modifica</Button> : null}</div>{message ? <p role="status">{message}</p> : null}</Surface> : <div className="data-freshness" role="status"><Database /><div><strong>{healthState?.lastSuccessfulSyncAt ? "Dati Health aggiornati" : "Dati Health non ancora sincronizzati"}</strong><span>{healthState?.lastSuccessfulSyncAt ? new Date(healthState.lastSuccessfulSyncAt).toLocaleString("it-IT") : "Collega il telefono o importa un GPX"}</span></div></div>}
     {!staff ? <Surface><div className="surface-heading"><div><p className="date-label">Qualità e freschezza</p><h2>Fonti dei dati</h2></div><Database /></div>{sourceFreshness.length ? <div className="source-quality-grid">{sourceFreshness.map((item) => <article key={item.source}><strong>{item.source.replaceAll("_", " ")}</strong><span>{item.count} attività · ultimo dato {new Date(item.latest).toLocaleDateString("it-IT")}</span><small>{item.quality}</small></article>)}</div> : <EmptyState title="Nessun dato disponibile" text="Registra un allenamento o collega una fonte esterna." />}</Surface> : null}
     {review ? <Surface><div className="surface-heading"><div><p className="date-label">Riepilogo settimanale</p><h2>{review.summary}</h2></div><Sparkles /></div><ul>{[...review.strengthNotes, ...review.runNotes].map((note) => <li key={note}>{note}</li>)}</ul></Surface> : <EmptyState title="Analisi in preparazione" text="Servono alcuni allenamenti registrati per costruire un riepilogo affidabile." />}

@@ -84,6 +84,19 @@ test("la web app aggiorna le attività Health quando torna visibile", async ({ p
   await expect(page.getByText(/2 attività · ultimo dato/)).toBeVisible();
 });
 
+test("il cliente associa una forza Health a una scheda del piano attivo", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "L'abbinamento usa lo stesso flusso a ogni breakpoint.");
+  await installSession(page, athleteId, "alex@example.com");
+  await mockPlatformApi(page, "athlete");
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Analisi" }).click();
+  await page.getByLabel("Associa alla scheda prevista").selectOption("lower-a");
+
+  await expect(page.getByRole("status").filter({ hasText: "Attività associata alla scheda e sincronizzata." })).toBeVisible();
+  await expect(page.getByText("Associato alla scheda")).toBeVisible();
+});
+
 test("il cliente può disattivare le push del dispositivo senza perdere l'inbox", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Il controllo Web Push è indipendente dal breakpoint.");
   await installSession(page, athleteId, "alex@example.com");
