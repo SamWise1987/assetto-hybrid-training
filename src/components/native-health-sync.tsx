@@ -4,8 +4,7 @@ import { useEffect } from "react";
 import { App } from "@capacitor/app";
 import { db } from "@/lib/db";
 import { getNativePlatform, importNativeWorkouts, isNativeShell, recordNativeHealthFailure } from "@/lib/native-health";
-
-const MIN_SYNC_INTERVAL_MS = 15 * 60 * 1000;
+import { shouldRunNativeHealthSync } from "@/lib/native-health-schedule";
 
 export function NativeHealthSync({ enabled }: { enabled: boolean }) {
   useEffect(() => {
@@ -15,9 +14,8 @@ export function NativeHealthSync({ enabled }: { enabled: boolean }) {
 
     const syncIfDue = async (foreground = false) => {
       const state = await db.healthSyncStates.get(`health-${platform}`);
-      if (!state?.lastSuccessfulSyncAt || state.status === "denied" || state.status === "syncing") return;
-      if (!foreground && Date.now() - new Date(state.lastSuccessfulSyncAt).getTime() < MIN_SYNC_INTERVAL_MS) return;
-      await importNativeWorkouts(30, state.lastSuccessfulSyncAt).catch(async (error) => {
+      if (!shouldRunNativeHealthSync(state, foreground)) return;
+      await importNativeWorkouts(30, state?.lastSuccessfulSyncAt).catch(async (error) => {
         await recordNativeHealthFailure(error);
       });
     };

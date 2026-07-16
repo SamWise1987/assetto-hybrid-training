@@ -10,7 +10,7 @@ describe("nativeWorkoutToRunSession", () => {
   it("usa 30 giorni al primo import e poi riparte dall'ultimo sync con overlap", () => {
     const now = Date.parse("2026-07-14T12:00:00.000Z");
     expect(nativeHealthSyncStartDate(30, undefined, now)).toBe("2026-06-14T12:00:00.000Z");
-    expect(nativeHealthSyncStartDate(30, "2026-07-14T10:00:00.000Z", now)).toBe("2026-07-14T09:55:00.000Z");
+    expect(nativeHealthSyncStartDate(30, "2026-07-14T10:00:00.000Z", now)).toBe("2026-07-12T10:00:00.000Z");
     expect(nativeHealthSyncStartDate(30, "non-valido", now)).toBe("2026-06-14T12:00:00.000Z");
   });
 

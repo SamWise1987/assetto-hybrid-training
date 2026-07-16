@@ -118,7 +118,10 @@ export function nativeHealthReadTypes(platform: NativeHealthPlatform) {
   return platform === "ios" ? [...shared, "exerciseTime" as const] : [...shared];
 }
 
-const HEALTH_SYNC_OVERLAP_MS = 5 * 60 * 1000;
+// Apple Watch può consegnare all'iPhone un workout diverse ore dopo la fine.
+// Rileggere le ultime 48 ore è sicuro perché ID nativo e fallback temporale
+// rendono l'import idempotente.
+const HEALTH_SYNC_OVERLAP_MS = 48 * 60 * 60 * 1000;
 
 export function nativeHealthSyncStartDate(afterDays: number, lastSuccessfulSyncAt?: string, now = Date.now()) {
   if (lastSuccessfulSyncAt) {
