@@ -47,6 +47,26 @@ test("cliente mantiene piano, Health, analisi e inbox anche dopo reload offline"
   await context.setOffline(false);
 });
 
+test("URL, refresh e cronologia mantengono la sezione cliente", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium", "La cronologia browser è indipendente dal breakpoint.");
+  await installSession(page, athleteId, "alex@example.com");
+  await mockPlatformApi(page, "athlete");
+
+  await page.goto("/?tab=calendar");
+  await expect(page.getByRole("heading", { name: "Calendario", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Calendario", exact: true })).toHaveAttribute("aria-current", "page");
+
+  await page.getByRole("button", { name: "Progressi" }).click();
+  await expect(page).toHaveURL(/\?tab=progress$/);
+  await expect(page.getByRole("heading", { name: "Progressi", exact: true })).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Progressi", exact: true })).toBeVisible();
+  await page.goBack();
+  await expect(page).toHaveURL(/\?tab=calendar$/);
+  await expect(page.getByRole("heading", { name: "Calendario", exact: true })).toBeVisible();
+});
+
 test("la web app aggiorna le attività Health quando torna visibile", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Il refresh foreground è indipendente dal breakpoint.");
   await installSession(page, athleteId, "alex@example.com");

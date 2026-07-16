@@ -29,7 +29,8 @@ import type { AppNotification, PlanAssignment, TrainingPlan } from "@/lib/types"
 import { ErrorMonitor } from "./error-monitor";
 import { ConsentConfirmation } from "./consent-confirmation";
 import { CloudRefreshManager } from "./cloud-refresh-manager";
-import { notificationHrefForTab, notificationTabFromHref } from "@/lib/notification-routing";
+import { notificationTabFromHref } from "@/lib/notification-routing";
+import { tabFromBrowserLocation, useTabNavigation } from "@/lib/tab-navigation";
 
 const athleteTabs: { id: AppTab; label: string; icon: typeof Home }[] = [
   { id: "today", label: "Oggi", icon: Home },
@@ -56,6 +57,7 @@ export function AssettoApp() {
   const activeAssignment = useLiveQuery(() => db.planAssignments.filter((item) => item.active).first());
   const unreadNotifications = useLiveQuery(() => db.notifications.filter((item) => !item.readAt).count()) ?? 0;
   const { tab, setTab, planNotice, setPlanNotice, setIntegrationMessage } = useAppStore();
+  const navigateToTab = useTabNavigation();
   const [authState, setAuthState] = useState<"loading" | "anonymous" | "authenticated">("loading");
   const [passwordSetup, setPasswordSetup] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -72,10 +74,9 @@ export function AssettoApp() {
   const openInternalHref = useCallback((href?: string) => {
     const requestedTab = notificationTabFromHref(href, window.location.origin);
     if (!requestedTab) return false;
-    setTab(requestedTab);
-    window.history.pushState({}, "", notificationHrefForTab(requestedTab));
+    navigateToTab(requestedTab);
     return true;
-  }, [setTab]);
+  }, [navigateToTab]);
 
   useEffect(() => {
     getRemoteSession().then((session) => setAuthState(session ? "authenticated" : "anonymous"));
@@ -116,9 +117,18 @@ export function AssettoApp() {
   useEffect(() => {
     const staffOnly = tab === "coach" || tab === "clients";
     const athleteOnly = tab === "today" || tab === "calendar" || tab === "progress";
-    if (!isStaff && staffOnly) setTab("today");
-    if (isStaff && athleteOnly) setTab("clients");
-  }, [isStaff, setTab, tab]);
+    if (!isStaff && staffOnly) navigateToTab("today", { replace: true });
+    if (isStaff && athleteOnly) navigateToTab("clients", { replace: true });
+  }, [isStaff, navigateToTab, tab]);
+
+  useEffect(() => {
+    const restoreTabFromHistory = () => {
+      const requestedTab = tabFromBrowserLocation();
+      if (requestedTab) setTab(requestedTab);
+    };
+    window.addEventListener("popstate", restoreTabFromHistory);
+    return () => window.removeEventListener("popstate", restoreTabFromHistory);
+  }, [setTab]);
 
   useEffect(() => {
     let remove: (() => void) | undefined;
@@ -214,7 +224,7 @@ export function AssettoApp() {
       </main>
       <nav className="bottom-nav" aria-label="Navigazione principale">
         {tabs.map(({ id, label, icon: Icon }) => (
-          <button key={id} type="button" className={tab === id ? "is-active" : ""} aria-current={tab === id ? "page" : undefined} onClick={() => setTab(id)}>
+          <button key={id} type="button" className={tab === id ? "is-active" : ""} aria-current={tab === id ? "page" : undefined} onClick={() => navigateToTab(id)}>
             <Icon aria-hidden="true" /><span>{label}</span>{id === "inbox" && unreadNotifications ? <strong className="nav-badge" aria-label={`${unreadNotifications} notifiche non lette`}>{unreadNotifications > 9 ? "9+" : unreadNotifications}</strong> : null}
           </button>
         ))}
