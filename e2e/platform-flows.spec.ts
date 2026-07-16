@@ -97,6 +97,40 @@ test("il cliente associa una forza Health a una scheda del piano attivo", async 
   await expect(page.getByText("Associato alla scheda")).toBeVisible();
 });
 
+test("il calendario non attribuisce una forza Health alla scheda sbagliata", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "La regola calendario è indipendente dal breakpoint.");
+  await installSession(page, athleteId, "alex@example.com");
+  await mockPlatformApi(page, "athlete");
+  await page.unroute("**/api/external-workouts**");
+  await page.route("**/api/external-workouts**", (route) => route.fulfill({ json: { workouts: [{
+    id: "66666666-6666-4666-8666-666666666666",
+    external_id: "health-1",
+    source: "apple_health",
+    platform: "ios",
+    workout_type: "functionalStrengthTraining",
+    kind: "strength",
+    start_date: "2026-07-13T17:00:00.000Z",
+    end_date: "2026-07-13T17:45:00.000Z",
+    duration_minutes: 45,
+    distance_km: null,
+    calories_kcal: 260,
+    average_heart_rate: 112,
+    max_heart_rate: 145,
+    source_name: "Apple Watch",
+    matched_template_id: "upper",
+    matched_at: "2026-07-13T18:00:00.000Z",
+    imported_at: "2026-07-13T18:00:00.000Z",
+  }] } }));
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Calendario" }).click();
+  const lowerDay = page.getByRole("gridcell", { name: /lunedì 13 luglio, Lower forza/i });
+  await expect(lowerDay).not.toHaveClass(/is-done/);
+  await lowerDay.click();
+  await expect(page.getByRole("heading", { name: "Lower forza" })).toBeVisible();
+  await expect(page.getByText(/Attività Health associata alla scheda/)).toHaveCount(0);
+});
+
 test("il cliente può disattivare le push del dispositivo senza perdere l'inbox", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Il controllo Web Push è indipendente dal breakpoint.");
   await installSession(page, athleteId, "alex@example.com");
