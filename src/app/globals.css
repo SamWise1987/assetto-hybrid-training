@@ -106,6 +106,7 @@ h1, h2, h3, p { margin-top: 0; }
 .free-day { margin: 0 20px 20px; }
 
 .flow-screen, .screen-stack { padding: 22px 20px 28px; display: grid; gap: 20px; }
+.flow-screen > *, .screen-stack > * { min-width: 0; }
 .flow-header { display: flex; gap: 14px; align-items: flex-start; padding-bottom: 18px; border-bottom: 1px solid var(--border-soft); }
 .flow-header > button { min-width: 44px; width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--border); background: transparent; display: grid; place-items: center; cursor: pointer; }
 .flow-header h1, .workout-header h1, .completion-screen h1, .safety-stop h1 { font-family: var(--font-display); font-size: 2.4rem; line-height: 1; margin: 0 0 6px; }
