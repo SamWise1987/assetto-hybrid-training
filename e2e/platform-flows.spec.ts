@@ -25,13 +25,24 @@ test("cliente mantiene piano, Health, analisi e inbox anche dopo reload offline"
   await page.screenshot({ path: `/tmp/roberta-athlete-${testInfo.project.name}.png`, fullPage: true });
 
   await page.evaluate(() => navigator.serviceWorker?.ready);
-  await expect.poll(() => page.evaluate(async () => (await caches.keys()).includes("roberta-functional-shell-v5"))).toBe(true);
+  await expect.poll(() => page.evaluate(async () => (await caches.keys()).includes("roberta-functional-shell-v6"))).toBe(true);
   await page.reload();
   await expect(page.getByText("Alex", { exact: true }).first()).toBeVisible();
   await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker?.controller))).toBe(true);
+  await page.evaluate(async () => {
+    const freshRoot = await fetch("/", { cache: "no-store" });
+    const runtime = await caches.open("roberta-functional-runtime-v6");
+    const shell = await caches.open("roberta-functional-shell-v6");
+    await runtime.put("/", freshRoot.clone());
+    await runtime.delete(`${window.location.pathname}${window.location.search}`);
+    await shell.put("/", new Response("<!doctype html><title>Shell obsoleta</title><p>STALE_SHELL</p>", {
+      headers: { "Content-Type": "text/html" },
+    }));
+  });
   await context.setOffline(true);
   await page.reload();
   await expect(page.getByText("Alex", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("STALE_SHELL")).toHaveCount(0);
   await expect(page.getByText(/Modalità offline/)).toBeVisible();
   await context.setOffline(false);
 });

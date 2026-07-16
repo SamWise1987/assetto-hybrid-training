@@ -1,4 +1,4 @@
-const CACHE_VERSION = "v5";
+const CACHE_VERSION = "v6";
 const SHELL_CACHE = `roberta-functional-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `roberta-functional-runtime-${CACHE_VERSION}`;
 const APP_SHELL = ["/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
@@ -7,6 +7,14 @@ async function cacheSuccessfulResponse(cacheName, request, response) {
   if (!response.ok) return;
   const cache = await caches.open(cacheName);
   await cache.put(request, response.clone());
+}
+
+async function latestOfflineDocument(request) {
+  const runtime = await caches.open(RUNTIME_CACHE);
+  const shell = await caches.open(SHELL_CACHE);
+  return (await runtime.match(request))
+    || (await runtime.match("/"))
+    || (await shell.match("/"));
 }
 
 self.addEventListener("install", (event) => {
@@ -43,7 +51,7 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(fetch(event.request).then(async (response) => {
       await cacheSuccessfulResponse(RUNTIME_CACHE, event.request, response);
       return response;
-    }).catch(async () => (await caches.match(event.request)) || (await caches.match("/"))));
+    }).catch(() => latestOfflineDocument(event.request)));
     return;
   }
 
@@ -56,12 +64,10 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (isAppShellAsset) {
-    event.respondWith(
-      caches.match(event.request).then((cached) => cached || fetch(event.request).then(async (response) => {
+    event.respondWith(fetch(event.request).then(async (response) => {
         await cacheSuccessfulResponse(SHELL_CACHE, event.request, response);
         return response;
-      })),
-    );
+      }).catch(async () => (await caches.open(SHELL_CACHE)).match(event.request)));
   }
 });
 
