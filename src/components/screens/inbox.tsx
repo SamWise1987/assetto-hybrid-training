@@ -9,14 +9,14 @@ import { disablePushNotifications, enablePushNotifications, getPushNotificationS
 import { db, markNotificationRead } from "@/lib/db";
 import { flushSyncQueue } from "@/lib/normalized-sync";
 import { reportAppError } from "@/lib/error-monitor";
-import { notificationHrefForTab, notificationTabFromHref } from "@/lib/notification-routing";
-import { useAppStore } from "@/lib/store";
+import { notificationTabFromHref } from "@/lib/notification-routing";
+import { useTabNavigation } from "@/lib/tab-navigation";
 
 export function InboxScreen() {
   const items = useLiveQuery(() => db.notifications.orderBy("createdAt").reverse().toArray(), [], []);
   const [pushStatus, setPushStatus] = useState("");
   const [pushEnabled, setPushEnabled] = useState<boolean | null>(null);
-  const setTab = useAppStore((state) => state.setTab);
+  const navigateToTab = useTabNavigation();
   useEffect(() => {
     let active = true;
     getPushNotificationStatus()
@@ -33,8 +33,7 @@ export function InboxScreen() {
     if (!item.readAt) markRead(item.id).catch((error) => reportAppError("notifications", error).catch(() => undefined));
     const targetTab = notificationTabFromHref(item.href, window.location.origin);
     if (!targetTab) return;
-    setTab(targetTab);
-    window.history.pushState({}, "", notificationHrefForTab(targetTab));
+    navigateToTab(targetTab);
   };
 
   const reportPushError = (error: unknown) => {

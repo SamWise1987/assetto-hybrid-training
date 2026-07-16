@@ -10,7 +10,7 @@ import { EXERCISES, getCycleTargets, TEMPLATES } from "@/lib/program";
 import { getTemplateForDayWithOverrides } from "@/lib/training-engine";
 import type { DailyReadiness, ExercisePrescription, WorkoutTemplate } from "@/lib/types";
 import { canManagePlans } from "@/lib/roles";
-import { useAppStore } from "@/lib/store";
+import { useTabNavigation } from "@/lib/tab-navigation";
 import { getDisplayName, getWelcomeGreeting } from "@/lib/user-display";
 import { Button, Surface } from "../../ui";
 import { RunFlow } from "./run-flow";
@@ -121,7 +121,7 @@ export function TodayScreen() {
   );
   const adjustment = adjustForReadiness(readiness);
   const targets = getCycleTargets(blockWeek);
-  const { setTab } = useAppStore();
+  const navigateToTab = useTabNavigation();
   const displayName = getDisplayName(account, profile);
   const welcome = getWelcomeGreeting(displayName, profile?.preferredGreeting ?? "neutral");
   const isClient = !canManagePlans(account?.role);
@@ -198,7 +198,7 @@ export function TodayScreen() {
         <Surface className="free-day"><h2>Domenica libera</h2><p>Nessuna seduta, recupero o notifica da completare.</p></Surface>
       ) : null}
 
-      <button className="change-rail" type="button" onClick={() => setTab("progress")}>
+      <button className="change-rail" type="button" onClick={() => navigateToTab("progress")}>
         <span><Sparkles /></span>
         <strong>{latestRunCalibration?.reason ?? latestDecision?.reason ?? "Piano iniziale: volume prudente e regole visibili."}</strong>
         <ArrowRight />
@@ -242,7 +242,7 @@ export function TodayScreen() {
           <p className="recovery-copy">Riposo, passeggiata libera o mobilità non provocativa. Nessun obbligo e nessuna penalità.</p>
         ) : null}
         {template.kind !== "free" ? (
-          <Button variant="secondary" onClick={() => setTab("calendar")}>Vedi calendario <ArrowRight /></Button>
+          <Button variant="secondary" onClick={() => navigateToTab("calendar")}>Vedi calendario <ArrowRight /></Button>
         ) : null}
       </div>
 

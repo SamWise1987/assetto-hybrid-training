@@ -6,7 +6,7 @@ import { ArrowRight, ClipboardList, Footprints } from "lucide-react";
 import { getResolvedTemplates } from "@/lib/db";
 import { getExerciseById } from "@/lib/exercise-library";
 import { TEMPLATES } from "@/lib/program";
-import { useAppStore } from "@/lib/store";
+import { useTabNavigation } from "@/lib/tab-navigation";
 import { GlossarySection } from "../glossary-section";
 import { Button, EmptyState, Surface } from "../ui";
 
@@ -15,7 +15,7 @@ const DAYS = ["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Vene
 /** Vista cliente: solo le schede assegnate, non la libreria completa. */
 export function MySchedeScreen() {
   const templates = useLiveQuery(() => getResolvedTemplates(), [], TEMPLATES) ?? TEMPLATES;
-  const { setTab } = useAppStore();
+  const navigateToTab = useTabNavigation();
   const [openId, setOpenId] = useState<string | null>(null);
 
   const schede = useMemo(
@@ -128,7 +128,7 @@ export function MySchedeScreen() {
                       })}
                     </ol>
                   )}
-                  <Button variant="secondary" onClick={() => setTab("today")}>
+                  <Button variant="secondary" onClick={() => navigateToTab("today")}>
                     Vai a Oggi <ArrowRight />
                   </Button>
                 </div>
