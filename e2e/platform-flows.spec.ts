@@ -123,7 +123,7 @@ test("il calendario non attribuisce una forza Health alla scheda sbagliata", asy
   }] } }));
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Calendario" }).click();
+  await page.getByRole("button", { name: "Calendario", exact: true }).click();
   const lowerDay = page.getByRole("gridcell", { name: /lunedì 13 luglio, Lower forza/i });
   await expect(lowerDay).not.toHaveClass(/is-done/);
   await lowerDay.click();
