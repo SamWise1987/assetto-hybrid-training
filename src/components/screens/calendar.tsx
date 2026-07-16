@@ -22,6 +22,7 @@ import type { RunSession, WorkoutTemplate } from "@/lib/types";
 import { z } from "zod";
 import { Button, Field, ScaleControl, Surface } from "../ui";
 import { currentPlatform } from "@/lib/platform";
+import { isScheduledTemplateComplete, matchedExternalForTemplateDate, strengthSessionForTemplateDate } from "@/lib/calendar-activity";
 
 const DAYS_SHORT = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 const DAYS = ["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"];
@@ -72,9 +73,13 @@ export function CalendarScreen() {
   const selectedTemplate = templateForDate(selected, resolvedTemplates);
   const selectedIso = toIsoDate(selected);
   const selectedRunPlan = runPlans.find((entry) => entry.date === selectedIso || entry.dayOfWeek === selected.getDay());
-  const selectedSession = sessions.find((entry) => entry.date === selectedIso);
-  const selectedExternal = externalWorkouts.find((entry) => entry.matchedTemplateId && entry.startDate.slice(0, 10) === selectedIso);
-  const selectedRun = runs.find((entry) => entry.date === selectedIso);
+  const selectedSession = selectedTemplate?.kind === "strength"
+    ? strengthSessionForTemplateDate(sessions, selectedIso, selectedTemplate.id)
+    : undefined;
+  const selectedExternal = selectedTemplate?.kind === "strength"
+    ? matchedExternalForTemplateDate(externalWorkouts, selectedIso, selectedTemplate.id)
+    : undefined;
+  const selectedRun = selectedTemplate?.kind === "run" ? runs.find((entry) => entry.date === selectedIso) : undefined;
 
   const reminders = useMemo(() => {
     const start = startOfWeek(new Date(), { weekStartsOn: 1 });
@@ -144,9 +149,7 @@ export function CalendarScreen() {
           const template = templateForDate(day, resolvedTemplates);
           const workout = isWorkoutDay(template);
           const iso = toIsoDate(day);
-          const done = sessions.some((entry) => entry.date === iso && entry.status === "complete")
-            || runs.some((entry) => entry.date === iso && entry.status === "complete")
-            || externalWorkouts.some((entry) => entry.matchedTemplateId && entry.startDate.slice(0, 10) === iso);
+          const done = isScheduledTemplateComplete({ date: iso, template, sessions, runs, externalWorkouts });
           return (
             <button
               key={iso}
