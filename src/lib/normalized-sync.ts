@@ -19,27 +19,48 @@ export async function flushSyncQueue() {
     if (!token) return 0;
     let synced = 0;
     while (isOnline()) {
-      const items = await db.syncQueue.orderBy("createdAt").limit(100).toArray();
+      const items = (await db.syncQueue.where("attemptCount").equals(0).sortBy("createdAt")).slice(0, 100);
       if (!items.length) return synced;
-      const response = await fetch("/api/sync/normalized", {
-        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ items: items.map(({ entity, entityId, payload }) => ({ entity, entityId, payload })) }),
+      const send = (batch: typeof items) => fetch("/api/sync/normalized", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ items: batch.map(({ entity, entityId, payload }) => ({ entity, entityId, payload })) }),
       });
+      const response = await send(items);
       if (!response.ok) {
         const body = await response.json().catch(() => ({ error: "Sync server non riuscita" })) as { error?: string };
         const message = response.status === 409 ? `Conflitto: ${body.error ?? "dati aggiornati su un altro dispositivo"}` : body.error ?? "Sync server non riuscita";
-        if (response.status === 409) {
-          const profileItems = items.filter((item) => item.entity === "profile");
-          if (profileItems.length) {
-            await db.syncQueue.bulkDelete(profileItems.map((item) => item.id));
-            await syncAccountProfile().catch(() => undefined);
+
+        if (items.length > 1 && [400, 409, 422].includes(response.status)) {
+          for (const item of items) {
+            const itemResponse = await send([item]);
+            if (itemResponse.ok) {
+              await db.syncQueue.delete(item.id);
+              synced += 1;
+              continue;
+            }
+            const itemBody = await itemResponse.json().catch(() => ({ error: "Sync elemento non riuscita" })) as { error?: string };
+            const itemMessage = itemResponse.status === 409
+              ? `Conflitto: ${itemBody.error ?? "dati aggiornati su un altro dispositivo"}`
+              : itemBody.error ?? "Sync elemento non riuscita";
+            if (itemResponse.status === 409 && item.entity === "profile") {
+              await db.syncQueue.delete(item.id);
+              await syncAccountProfile().catch(() => undefined);
+            } else {
+              await db.syncQueue.put({ ...item, attemptCount: item.attemptCount + 1, lastError: itemMessage });
+            }
+            reportAppError("sync", itemMessage, { status: itemResponse.status, itemCount: 1, operation: item.entity }).catch(() => undefined);
           }
+        } else if (response.status === 409) {
+          const profileItems = items.filter((item) => item.entity === "profile");
+          if (profileItems.length) await db.syncQueue.bulkDelete(profileItems.map((item) => item.id));
+          if (profileItems.length) await syncAccountProfile().catch(() => undefined);
           await Promise.all(items.filter((item) => item.entity !== "profile").map((item) => db.syncQueue.put({ ...item, attemptCount: item.attemptCount + 1, lastError: message })));
         } else {
           await Promise.all(items.map((item) => db.syncQueue.put({ ...item, attemptCount: item.attemptCount + 1, lastError: message })));
         }
         reportAppError("sync", message, { status: response.status, itemCount: items.length }).catch(() => undefined);
-        return synced;
+        continue;
       }
       await db.syncQueue.bulkDelete(items.map((item) => item.id));
       synced += items.length;
@@ -57,7 +78,7 @@ export function registerOnlineSync() {
 
 export async function retryFailedSync() {
   const failed = await db.syncQueue.filter((item) => item.attemptCount > 0).toArray();
-  await Promise.all(failed.map((item) => db.syncQueue.put({ ...item, lastError: undefined })));
+  await Promise.all(failed.map((item) => db.syncQueue.put({ ...item, attemptCount: 0, lastError: undefined })));
   return flushSyncQueue();
 }
 
