@@ -5,6 +5,9 @@ import { createServiceSupabaseClient } from "@/lib/supabase/server";
 import { dispatchPush } from "@/lib/push-server";
 import { notificationDedupeKey } from "@/lib/notification-events";
 import { verifyActiveStrengthTemplate } from "@/lib/health-matching-server";
+import { notifyTrainersOfExternalWorkouts } from "@/lib/trainer-activity-notifications";
+
+const HEALTH_NOTIFICATION_SAFETY_WINDOW_MS = 48 * 60 * 60 * 1000;
 
 const workoutSchema = z.object({
   id: z.string().uuid(),
@@ -56,6 +59,17 @@ export async function POST(request: Request) {
   if (!parsed.success) return jsonError("Attività non valide.");
   const client = staffClient(request);
   if (!client) return jsonError("Supabase non configurato.", 503);
+  let previousSuccessfulSyncAt: string | null = null;
+  if (parsed.data.healthState) {
+    const { data: previousState, error: previousStateError } = await client
+      .from("health_sync_states")
+      .select("last_successful_sync_at")
+      .eq("user_id", profile.userId)
+      .eq("platform", parsed.data.healthState.platform)
+      .maybeSingle();
+    if (previousStateError) return jsonError(previousStateError.message, 500);
+    previousSuccessfulSyncAt = previousState?.last_successful_sync_at ?? null;
+  }
   if (parsed.data.workouts.length) {
     const rows = parsed.data.workouts.map((item) => ({
       id: item.id, user_id: profile.userId, external_id: item.externalId, source: item.source,
@@ -67,6 +81,17 @@ export async function POST(request: Request) {
     }));
     const { error } = await client.from("external_workouts").upsert(rows, { onConflict: "user_id,source,external_id" });
     if (error) return jsonError(error.message, 500);
+
+    const notificationCutoff = parsed.data.healthState
+      ? new Date(Date.parse(previousSuccessfulSyncAt ?? parsed.data.healthState.lastAttemptAt) - HEALTH_NOTIFICATION_SAFETY_WINDOW_MS).getTime()
+      : Number.NEGATIVE_INFINITY;
+    const notification = await notifyTrainersOfExternalWorkouts(
+      profile.userId,
+      parsed.data.workouts
+        .filter((item) => Date.parse(item.startDate) >= notificationCutoff)
+        .map((item) => item.id),
+    );
+    if (notification.error) return jsonError(notification.error, 500);
   }
   if (parsed.data.healthState) {
     const state = parsed.data.healthState;
@@ -135,5 +160,7 @@ export async function PATCH(request: Request) {
     .maybeSingle();
   if (error) return jsonError(error.message, 500);
   if (!data) return jsonError("Attività non trovata.", 404);
+  const notification = await notifyTrainersOfExternalWorkouts(profile.userId, [data.id]);
+  if (notification.error) return jsonError(notification.error, 500);
   return jsonOk({ matched: true, workout: data });
 }
