@@ -11,7 +11,7 @@ vi.mock("./error-monitor", () => ({
 }));
 
 const { db } = await import("./db");
-const { flushSyncQueue } = await import("./normalized-sync");
+const { flushSyncQueue, retryFailedSync } = await import("./normalized-sync");
 
 describe("normalized offline sync", () => {
   beforeEach(async () => {
@@ -102,6 +102,47 @@ describe("normalized offline sync", () => {
       entityId: "notice-offline",
       payload: { readAt: "2026-07-15T12:00:00.000Z" },
     });
+    expect(await db.syncQueue.count()).toBe(0);
+  });
+
+  it("isola l'elemento non valido e sincronizza gli altri dello stesso batch", async () => {
+    await db.syncQueue.bulkAdd([
+      { id: "queue-bad", entity: "run", entityId: "bad-run", operation: "upsert", payload: { invalid: true }, createdAt: "2026-07-15T10:00:00.000Z", attemptCount: 0 },
+      { id: "queue-good", entity: "run", entityId: "good-run", operation: "upsert", payload: { id: "good-run" }, createdAt: "2026-07-15T10:01:00.000Z", attemptCount: 0 },
+    ]);
+    let requestCount = 0;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      void input;
+      requestCount += 1;
+      const items = JSON.parse(String(init?.body)).items as Array<{ entityId: string }>;
+      const invalid = items.some((item) => item.entityId === "bad-run");
+      if (requestCount === 1 || invalid) return new Response(JSON.stringify({ error: "Elemento non valido" }), { status: 400, headers: { "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ synced: 1 }), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    vi.stubGlobal("navigator", { onLine: true });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(flushSyncQueue()).resolves.toBe(1);
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(await db.syncQueue.get("queue-good")).toBeUndefined();
+    expect(await db.syncQueue.get("queue-bad")).toEqual(expect.objectContaining({ attemptCount: 1, lastError: "Elemento non valido" }));
+  });
+
+  it("un elemento fallito non blocca nuove modifiche e il retry lo riabilita", async () => {
+    await db.syncQueue.bulkAdd([
+      { id: "queue-failed", entity: "run", entityId: "failed-run", operation: "upsert", payload: {}, createdAt: "2026-07-15T10:00:00.000Z", attemptCount: 2, lastError: "Errore precedente" },
+      { id: "queue-new", entity: "workout", entityId: "new-workout", operation: "upsert", payload: { id: "new-workout" }, createdAt: "2026-07-15T10:01:00.000Z", attemptCount: 0 },
+    ]);
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ synced: 1 }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    vi.stubGlobal("navigator", { onLine: true });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(flushSyncQueue()).resolves.toBe(1);
+    expect(await db.syncQueue.get("queue-new")).toBeUndefined();
+    expect(await db.syncQueue.get("queue-failed")).toBeDefined();
+
+    await expect(retryFailedSync()).resolves.toBe(1);
     expect(await db.syncQueue.count()).toBe(0);
   });
 });
