@@ -25,6 +25,7 @@ import { AwaitingPlanScreen } from "./screens/awaiting-plan";
 import { SyncManager } from "./sync-manager";
 import { refreshAthleteCloudState } from "@/lib/cloud-refresh";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { removeUserNotificationChannel, subscribeToUserNotifications } from "@/lib/notification-realtime";
 import type { AppNotification, PlanAssignment, TrainingPlan } from "@/lib/types";
 import { ErrorMonitor } from "./error-monitor";
 import { ConsentConfirmation } from "./consent-confirmation";
@@ -147,7 +148,8 @@ export function AssettoApp() {
   }, [openInternalHref]);
 
   useEffect(() => {
-    if (authState !== "authenticated") return;
+    const userId = account?.userId;
+    if (authState !== "authenticated" || !userId) return;
     const load = async () => {
       const token = await getRemoteAccessToken(); if (!token) return;
       const response = await fetch("/api/notifications", { headers: { Authorization: `Bearer ${token}` } });
@@ -161,9 +163,9 @@ export function AssettoApp() {
     };
     const timeout = window.setTimeout(() => { load().catch(() => undefined); }, 0);
     const client = createBrowserSupabaseClient();
-    const channel = client?.channel("global-app-notifications").on("postgres_changes", { event: "*", schema: "public", table: "app_notifications" }, () => { load().catch(() => undefined); }).subscribe();
-    return () => { window.clearTimeout(timeout); if (client && channel) client.removeChannel(channel); };
-  }, [authState]);
+    const channel = subscribeToUserNotifications(client, userId, () => { load().catch(() => undefined); });
+    return () => { window.clearTimeout(timeout); removeUserNotificationChannel(client, channel); };
+  }, [account?.userId, authState]);
 
   useEffect(() => {
     let remove: (() => void) | undefined;
