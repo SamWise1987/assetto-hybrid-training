@@ -23,9 +23,11 @@ import { z } from "zod";
 import { Button, Field, ScaleControl, Surface } from "../ui";
 import { currentPlatform } from "@/lib/platform";
 import { isScheduledTemplateComplete, matchedExternalForTemplateDate, strengthSessionForTemplateDate } from "@/lib/calendar-activity";
+import { handleRovingTabKey } from "@/lib/keyboard-navigation";
 
 const DAYS_SHORT = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 const DAYS = ["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"];
+const CALENDAR_VIEWS = ["month", "week"] as const;
 const runSchema = z.object({
   duration: z.coerce.number().min(5).max(240),
   distance: z.coerce.number().min(0).max(100),
@@ -99,6 +101,24 @@ export function CalendarScreen() {
       .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
   }, [resolvedTemplates]);
 
+  const moveCalendarFocus = (event: React.KeyboardEvent<HTMLButtonElement>, day: Date) => {
+    const offsets: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 };
+    const currentIndex = gridDays.findIndex((entry) => isSameDay(entry, day));
+    const weekStartIndex = Math.floor(currentIndex / 7) * 7;
+    const nextIndex = event.key === "Home"
+      ? weekStartIndex
+      : event.key === "End"
+        ? weekStartIndex + 6
+        : currentIndex + (offsets[event.key] ?? 0);
+    if (!(event.key in offsets) && event.key !== "Home" && event.key !== "End") return;
+    if (nextIndex < 0 || nextIndex >= gridDays.length) return;
+    event.preventDefault();
+    const nextDay = gridDays[nextIndex];
+    setSelected(nextDay);
+    const nextIso = toIsoDate(nextDay);
+    event.currentTarget.closest('[role="grid"]')?.querySelector<HTMLElement>(`[data-calendar-date="${nextIso}"]`)?.focus();
+  };
+
   return (
     <div className="screen-stack">
       <header className="section-heading">
@@ -109,8 +129,18 @@ export function CalendarScreen() {
 
       <div className="calendar-toolbar">
         <div className="calendar-view-toggle" role="tablist" aria-label="Vista calendario">
-          <button type="button" className={view === "month" ? "is-active" : ""} onClick={() => setView("month")}>Mese</button>
-          <button type="button" className={view === "week" ? "is-active" : ""} onClick={() => setView("week")}>Settimana</button>
+          {CALENDAR_VIEWS.map((option) => <button
+            key={option}
+            id={`calendar-view-${option}`}
+            type="button"
+            role="tab"
+            aria-selected={view === option}
+            aria-controls="calendar-view-panel"
+            tabIndex={view === option ? 0 : -1}
+            className={view === option ? "is-active" : ""}
+            onClick={() => setView(option)}
+            onKeyDown={(event) => handleRovingTabKey(event, CALENDAR_VIEWS, view, setView)}
+          >{option === "month" ? "Mese" : "Settimana"}</button>)}
         </div>
         <div className="calendar-nav">
           <button
@@ -141,44 +171,56 @@ export function CalendarScreen() {
         </div>
       </div>
 
-      <div className="calendar-grid" role="grid" aria-label={view === "month" ? "Calendario mensile" : "Calendario settimanale"}>
-        {DAYS_SHORT.map((label) => (
-          <div key={label} className="calendar-weekday" role="columnheader">{label}</div>
-        ))}
-        {gridDays.map((day) => {
-          const template = templateForDate(day, resolvedTemplates);
-          const workout = isWorkoutDay(template);
-          const iso = toIsoDate(day);
-          const done = isScheduledTemplateComplete({ date: iso, template, sessions, runs, externalWorkouts });
-          return (
-            <button
-              key={iso}
-              type="button"
-              role="gridcell"
-              className={[
-                "calendar-day",
-                !isSameMonth(day, cursor) && view === "month" ? "is-outside" : "",
-                isToday(day) ? "is-today" : "",
-                isSameDay(day, selected) ? "is-selected" : "",
-                workout ? "has-workout" : "",
-                template?.kind === "run" ? "is-run" : "",
-                template?.kind === "recovery" ? "is-recovery" : "",
-                done ? "is-done" : "",
-              ].filter(Boolean).join(" ")}
-              onClick={() => {
-                setSelected(day);
-                if (view === "month") setCursor(startOfMonth(day));
-              }}
-              aria-label={`${format(day, "EEEE d MMMM", { locale: it })}${template ? `, ${template.name}` : ""}`}
-              aria-current={isSameDay(day, selected) ? "date" : undefined}
-            >
-              <span className="calendar-day-number">{format(day, "d")}</span>
-              {workout ? <span className="calendar-day-dot" aria-hidden="true" /> : null}
-              {workout && template ? <span className="calendar-day-label">{template.name}</span> : null}
-              {workout && template?.kind !== "recovery" ? <Bell className="calendar-day-bell" aria-hidden="true" /> : null}
-            </button>
-          );
-        })}
+      <div id="calendar-view-panel" role="tabpanel" aria-labelledby={`calendar-view-${view}`}>
+        <div className="calendar-grid" role="grid" aria-label={view === "month" ? "Calendario mensile" : "Calendario settimanale"}>
+          <div role="row" className="calendar-grid-row">
+            {DAYS_SHORT.map((label) => (
+              <div key={label} className="calendar-weekday" role="columnheader">{label}</div>
+            ))}
+          </div>
+          {Array.from({ length: Math.ceil(gridDays.length / 7) }, (_, rowIndex) => (
+            <div key={rowIndex} role="row" className="calendar-grid-row">
+              {gridDays.slice(rowIndex * 7, rowIndex * 7 + 7).map((day) => {
+                const template = templateForDate(day, resolvedTemplates);
+                const workout = isWorkoutDay(template);
+                const iso = toIsoDate(day);
+                const done = isScheduledTemplateComplete({ date: iso, template, sessions, runs, externalWorkouts });
+                return (
+                  <button
+                    key={iso}
+                    type="button"
+                    role="gridcell"
+                    data-calendar-date={iso}
+                    tabIndex={isSameDay(day, selected) ? 0 : -1}
+                    className={[
+                      "calendar-day",
+                      !isSameMonth(day, cursor) && view === "month" ? "is-outside" : "",
+                      isToday(day) ? "is-today" : "",
+                      isSameDay(day, selected) ? "is-selected" : "",
+                      workout ? "has-workout" : "",
+                      template?.kind === "run" ? "is-run" : "",
+                      template?.kind === "recovery" ? "is-recovery" : "",
+                      done ? "is-done" : "",
+                    ].filter(Boolean).join(" ")}
+                    onClick={() => {
+                      setSelected(day);
+                      if (view === "month") setCursor(startOfMonth(day));
+                    }}
+                    onKeyDown={(event) => moveCalendarFocus(event, day)}
+                    aria-label={`${format(day, "EEEE d MMMM", { locale: it })}${template ? `, ${template.name}` : ""}${done ? ", completato" : ""}`}
+                    aria-selected={isSameDay(day, selected)}
+                    aria-current={isToday(day) ? "date" : undefined}
+                  >
+                    <span className="calendar-day-number">{format(day, "d")}</span>
+                    {workout ? <span className="calendar-day-dot" aria-hidden="true" /> : null}
+                    {workout && template ? <span className="calendar-day-label">{template.name}</span> : null}
+                    {workout && template?.kind !== "recovery" ? <Bell className="calendar-day-bell" aria-hidden="true" /> : null}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
       </div>
 
       <Surface className="calendar-day-detail">
