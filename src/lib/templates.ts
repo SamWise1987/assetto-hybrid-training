@@ -24,15 +24,19 @@ export function resolveTemplates(
 
   if (!activePlan) return customized;
 
-  const sessionOverrides = new Map(activePlan.sessions.map((session) => [session.templateId, session]));
-  return customized.map((template) => {
-    const session = sessionOverrides.get(template.id);
-    if (!session?.prescriptions?.length) return template;
+  const baseTemplates = new Map(customized.map((template) => [template.id, template]));
+  return activePlan.sessions.map((session) => {
+    const template = baseTemplates.get(session.templateId);
     return {
-      ...template,
-      prescriptions: session.prescriptions,
-      notes: session.notes ?? template.notes,
-      estimatedMinutes: session.estimatedMinutes ?? template.estimatedMinutes,
+      id: session.templateId,
+      dayOfWeek: session.dayOfWeek,
+      name: session.displayName,
+      kind: session.kind,
+      estimatedMinutes: session.estimatedMinutes,
+      prescriptions: session.kind === "strength"
+        ? session.prescriptions ?? template?.prescriptions ?? []
+        : [],
+      notes: session.notes ?? template?.notes,
     };
   });
 }
