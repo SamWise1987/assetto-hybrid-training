@@ -273,6 +273,47 @@ test("admin vede analisi operative senza dettagli sanitari individuali", async (
   await expect(page.getByText("Private rationale")).toHaveCount(0);
 });
 
+test("tab e griglia calendario supportano frecce e focus roving", async ({ page }) => {
+  await installSession(page, athleteId, "alex@example.com");
+  await mockPlatformApi(page, "athlete");
+  await page.goto("/");
+  await page.getByRole("button", { name: "Calendario", exact: true }).click();
+
+  const monthTab = page.getByRole("tab", { name: "Mese" });
+  const weekTab = page.getByRole("tab", { name: "Settimana" });
+  await expect(monthTab).toHaveAttribute("aria-selected", "true");
+  await monthTab.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(weekTab).toBeFocused();
+  await expect(weekTab).toHaveAttribute("aria-selected", "true");
+
+  const activeDay = page.locator('[role="gridcell"][tabindex="0"]');
+  await expect(activeDay).toHaveCount(1);
+  const originalLabel = await activeDay.getAttribute("aria-label");
+  await activeDay.focus();
+  await page.keyboard.press("ArrowRight");
+  const nextDay = page.locator('[role="gridcell"]:focus');
+  await expect(nextDay).toHaveAttribute("aria-selected", "true");
+  await expect(nextDay).not.toHaveAttribute("aria-label", originalLabel ?? "");
+  await expect(page.locator('[role="gridcell"][tabindex="0"]')).toHaveCount(1);
+  await expect(page.locator('[role="gridcell"][aria-current="date"]')).toHaveCount(1);
+});
+
+test("i filtri della libreria espongono tab e pannello accessibili", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Il comportamento dei filtri è indipendente dal breakpoint.");
+  await installSession(page, coachId, "trainer@example.com");
+  await mockPlatformApi(page, "coach");
+  await page.goto("/");
+  await page.getByRole("button", { name: "Libreria" }).click();
+
+  const allTab = page.getByRole("tab", { name: "Tutti" });
+  await allTab.focus();
+  await page.keyboard.press("ArrowRight");
+  const selectedTab = page.locator('[role="tab"][aria-selected="true"]');
+  await expect(selectedTab).toBeFocused();
+  await expect(page.getByRole("tabpanel")).toHaveAttribute("aria-labelledby", await selectedTab.getAttribute("id") ?? "");
+});
+
 test("il collegamento salta al contenuto resta nascosto finché non riceve focus da tastiera", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Il comportamento tastiera è indipendente dal breakpoint.");
   await page.goto("/");
