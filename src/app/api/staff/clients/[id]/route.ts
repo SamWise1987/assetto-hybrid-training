@@ -35,9 +35,11 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const external = externalResult.data ?? [];
   const plannedPerWeek = Math.max(1, plan?.sessions.filter((item) => item.kind !== "free" && item.kind !== "recovery").length ?? 1);
   const recent = calculateTrainerAdherence({
-    workouts: workouts.map((item) => ({ date: item.session_date, status: item.status })),
+    workouts: workouts.map((item) => ({ date: item.session_date, status: item.status, templateId: item.template_id })),
     runs: runs.map((item) => ({ date: item.session_date, status: item.status })),
-    matchedExternalDates: external.filter((item) => item.matched_template_id).map((item) => item.start_date.slice(0, 10)),
+    matchedExternal: external.flatMap((item) => item.matched_template_id
+      ? [{ date: item.start_date.slice(0, 10), templateId: item.matched_template_id }]
+      : []),
     followUpDates: (followUpsResult.data ?? []).map((item) => item.log_date),
     plannedPerWeek,
   });

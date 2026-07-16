@@ -7,12 +7,15 @@ describe("calculateTrainerAdherence", () => {
       now: Date.parse("2026-07-15T12:00:00.000Z"),
       plannedPerWeek: 2,
       workouts: [
-        { date: "2026-07-14", status: "complete" },
+        { date: "2026-07-14", status: "complete", templateId: "strength-a" },
         { date: "2026-06-10", status: "complete" },
         { date: "2026-07-12", status: "stopped" },
       ],
       runs: [{ date: "2026-07-01", status: "complete" }],
-      matchedExternalDates: ["2026-07-10", "2026-05-01"],
+      matchedExternal: [
+        { date: "2026-07-10", templateId: "strength-a" },
+        { date: "2026-05-01", templateId: "strength-a" },
+      ],
       followUpDates: ["2026-07-14", "2026-05-01"],
     });
 
@@ -34,7 +37,23 @@ describe("calculateTrainerAdherence", () => {
       plannedPerWeek: 1,
       workouts: recent,
       runs: [],
-      matchedExternalDates: [],
+      matchedExternal: [],
     }).percent).toBe(100);
+  });
+
+  it("non conta due volte una scheda registrata anche da Apple Health", () => {
+    const result = calculateTrainerAdherence({
+      now: Date.parse("2026-07-15T12:00:00.000Z"),
+      plannedPerWeek: 2,
+      workouts: [{ date: "2026-07-14", status: "complete", templateId: "strength-a" }],
+      runs: [],
+      matchedExternal: [
+        { date: "2026-07-14", templateId: "strength-a" },
+        { date: "2026-07-14", templateId: "strength-a" },
+        { date: "2026-07-14", templateId: "strength-b" },
+      ],
+    });
+
+    expect(result).toMatchObject({ workoutCount: 1, matchedExternalCount: 1, completed: 2, percent: 25 });
   });
 });
