@@ -325,7 +325,7 @@ test("la shell resta utilizzabile con testo al 200% su mobile", async ({ page },
     const result = await page.evaluate(() => {
       const navigationButtons = [...document.querySelectorAll<HTMLButtonElement>(".bottom-nav button")];
       return {
-        documentOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        documentOverflow: document.documentElement.scrollWidth - (window.visualViewport?.width ?? document.documentElement.clientWidth),
         clipped: [...document.querySelectorAll<HTMLElement>(".app-header, .bottom-nav button, .bottom-nav button span, .calendar-toolbar, .metric-strip > div")]
           .filter((element) => element.scrollWidth > element.clientWidth + 1 || element.scrollHeight > element.clientHeight + 1)
           .map((element) => `${element.tagName.toLowerCase()}.${element.className}`),
