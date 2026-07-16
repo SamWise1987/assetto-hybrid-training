@@ -1,4 +1,4 @@
-import { defineConfig } from "@playwright/test";
+import { defineConfig, devices } from "@playwright/test";
 
 const remoteBaseUrl = process.env.PLAYWRIGHT_BASE_URL;
 
@@ -17,7 +17,7 @@ export default defineConfig({
     timeout: 30_000,
   },
   projects: [
-    { name: "mobile-chromium", use: { browserName: "chromium", viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
+    { name: "mobile-chromium", use: { ...devices["iPhone 13"], browserName: "chromium", viewport: { width: 390, height: 844 } } },
     { name: "tablet-chromium", use: { browserName: "chromium", viewport: { width: 768, height: 1024 }, hasTouch: true } },
     { name: "desktop-chromium", use: { browserName: "chromium", viewport: { width: 1280, height: 800 } } },
   ],
