@@ -16,13 +16,15 @@
   --danger: #e45d5d;
   --danger-bg: #35161a;
   --radius: 16px;
+  --app-header-height: max(72px, 4.5rem);
+  --bottom-nav-height: max(84px, 5rem);
   --font-display: "Arial Narrow", "Roboto Condensed", "Helvetica Neue Condensed", Impact, sans-serif;
   --font-ui: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 * { box-sizing: border-box; }
-html { min-height: 100%; background: var(--bg); color-scheme: dark; }
-body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-ui); font-size: 16px; line-height: 1.5; }
+html { min-height: 100%; background: var(--bg); color-scheme: dark; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-ui); font-size: 1rem; line-height: 1.5; }
 button, input, select, textarea { font: inherit; }
 button { color: inherit; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible { outline: 3px solid var(--turquoise); outline-offset: 3px; }
@@ -36,7 +38,7 @@ h1, h2, h3, p { margin-top: 0; }
 .sync-banner { position: fixed; z-index: 70; top: env(safe-area-inset-top); left: 50%; transform: translateX(-50%); width: min(100%, 620px); padding: 8px 14px; border-radius: 0 0 10px 10px; background: #241d16; color: #e8c7a8; text-align: center; font-size: .76rem; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 10px; }
 .sync-banner.has-error { background: #4a211f; color: #fff0e8; }
 .sync-banner button { border: 1px solid currentColor; border-radius: 999px; padding: 3px 9px; color: inherit; background: transparent; font: inherit; cursor: pointer; }
-.pwa-update-banner { position: fixed; z-index: 80; right: 16px; bottom: calc(88px + env(safe-area-inset-bottom)); max-width: min(360px, calc(100vw - 32px)); display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--sage); border-radius: 12px; background: var(--surface); box-shadow: 0 12px 36px #0008; }
+.pwa-update-banner { position: fixed; z-index: 80; right: 16px; bottom: calc(var(--bottom-nav-height) + 4px + env(safe-area-inset-bottom)); max-width: min(360px, calc(100vw - 32px)); display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--sage); border-radius: 12px; background: var(--surface); box-shadow: 0 12px 36px #0008; }
 .pwa-update-banner button { flex: 0 0 auto; border: 0; border-radius: 999px; padding: 7px 11px; background: var(--sage); color: #071521; font-weight: 800; cursor: pointer; }
 .source-quality-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
 .source-quality-grid article { display: grid; gap: 4px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: color-mix(in srgb, var(--surface) 86%, transparent); }
@@ -55,14 +57,14 @@ h1, h2, h3, p { margin-top: 0; }
 .auth-card > svg { width: 42px; height: 42px; color: var(--sage); }
 .auth-invite-note { margin: 18px 20px 0; text-align: center; font-size: .82rem; }
 .app-shell { min-height: 100dvh; max-width: 980px; margin: 0 auto; background: var(--bg); border-inline: 1px solid rgba(255,255,255,.03); }
-.app-header, .brand-row { height: 72px; padding: 16px 20px 12px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,.04); background: var(--bg-deep); }
-.wordmark { font-family: var(--font-display); font-stretch: condensed; font-weight: 900; font-size: 2.15rem; letter-spacing: -.045em; color: var(--text); line-height: 1; }
+.app-header, .brand-row { min-height: var(--app-header-height); padding: 16px 20px 12px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; border-bottom: 1px solid rgba(255,255,255,.04); background: var(--bg-deep); }
+.wordmark { min-width: 0; overflow-wrap: anywhere; font-family: var(--font-display); font-stretch: condensed; font-weight: 900; font-size: clamp(1.6rem, 8vw, 2.15rem); letter-spacing: -.045em; color: var(--text); line-height: 1; }
 .local-status, .cloud-status { display: flex; align-items: center; gap: 8px; color: #c9c1b9; font-weight: 650; font-size: .82rem; }
 .local-status i, .cloud-status i { width: 10px; height: 10px; border-radius: 50%; background: var(--sage); }
-.main-content { min-height: calc(100dvh - 72px); padding-bottom: 100px; }
+.main-content { min-height: calc(100dvh - var(--app-header-height)); padding-bottom: calc(var(--bottom-nav-height) + 16px + env(safe-area-inset-bottom)); }
 
-.bottom-nav { position: fixed; z-index: 40; bottom: 0; left: 50%; transform: translateX(-50%); width: min(100%, 980px); height: calc(84px + env(safe-area-inset-bottom)); padding: 8px 8px env(safe-area-inset-bottom); display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); background: rgba(4,16,26,.97); border-top: 1px solid var(--border-soft); backdrop-filter: blur(16px); }
-.bottom-nav button { position: relative; min-width: 0; min-height: 64px; border: 0; background: transparent; color: var(--muted); display: flex; flex-direction: column; gap: 5px; align-items: center; justify-content: center; font-size: .7rem; font-weight: 650; cursor: pointer; }
+.bottom-nav { position: fixed; z-index: 40; bottom: 0; left: 50%; transform: translateX(-50%); width: min(100%, 980px); min-height: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom)); padding: 8px 8px env(safe-area-inset-bottom); display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); background: rgba(4,16,26,.97); border-top: 1px solid var(--border-soft); backdrop-filter: blur(16px); }
+.bottom-nav button { position: relative; min-width: 0; min-height: max(64px, 4.5rem); border: 0; background: transparent; color: var(--muted); display: flex; flex-direction: column; gap: 5px; align-items: center; justify-content: center; font-size: .7rem; font-weight: 650; line-height: 1.15; text-align: center; overflow-wrap: anywhere; cursor: pointer; }
 .bottom-nav button svg { width: 24px; height: 24px; stroke-width: 1.75; }
 .bottom-nav button.is-active { color: var(--sage); }
 .bottom-nav button.is-active::before { content: ""; position: absolute; top: -9px; width: 48px; height: 3px; background: var(--sage); }

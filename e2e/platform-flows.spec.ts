@@ -314,6 +314,42 @@ test("i filtri della libreria espongono tab e pannello accessibili", async ({ pa
   await expect(page.getByRole("tabpanel")).toHaveAttribute("aria-labelledby", await selectedTab.getAttribute("id") ?? "");
 });
 
+test("la shell resta utilizzabile con testo al 200% su mobile", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium", "Il caso critico combina testo al 200% e viewport da 390 px.");
+  await installSession(page, athleteId, "alex@example.com");
+  await mockPlatformApi(page, "athlete");
+  await page.goto("/");
+  await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+
+  const assertNoClipping = async () => {
+    const result = await page.evaluate(() => {
+      const navigationButtons = [...document.querySelectorAll<HTMLButtonElement>(".bottom-nav button")];
+      return {
+        documentOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        clipped: [...document.querySelectorAll<HTMLElement>(".app-header, .bottom-nav button, .bottom-nav button span, .calendar-toolbar, .metric-strip > div")]
+          .filter((element) => element.scrollWidth > element.clientWidth + 1 || element.scrollHeight > element.clientHeight + 1)
+          .map((element) => `${element.tagName.toLowerCase()}.${element.className}`),
+        blockedNavigation: navigationButtons.flatMap((button) => {
+          const bounds = button.getBoundingClientRect();
+          const hit = document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
+          return hit && button.contains(hit) ? [] : [button.textContent?.trim() ?? "pulsante senza etichetta"];
+        }),
+      };
+    });
+    expect(result.documentOverflow).toBeLessThanOrEqual(1);
+    expect(result.clipped).toEqual([]);
+    expect(result.blockedNavigation).toEqual([]);
+  };
+
+  await assertNoClipping();
+  await page.getByRole("button", { name: "Calendario", exact: true }).click();
+  await assertNoClipping();
+  await page.getByRole("button", { name: "Progressi" }).click();
+  await assertNoClipping();
+  await page.getByRole("button", { name: /Avvisi/ }).click();
+  await assertNoClipping();
+});
+
 test("il collegamento salta al contenuto resta nascosto finché non riceve focus da tastiera", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Il comportamento tastiera è indipendente dal breakpoint.");
   await page.goto("/");
