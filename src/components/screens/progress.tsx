@@ -5,7 +5,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { Activity, RotateCcw, TrendingUp } from "lucide-react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { undoProgressionDecision } from "@/lib/autoregulation";
-import { db, getActiveBlockWeek, undoRunCalibration } from "@/lib/db";
+import { db, getActiveBlockWeek, getResolvedTemplates, undoRunCalibration } from "@/lib/db";
 import { buildProgressSummary, countRecentWeeksWithData } from "@/lib/progress-analytics";
 import { Button, EmptyState, Surface } from "../ui";
 
@@ -16,12 +16,15 @@ export function ProgressScreen() {
   const workouts = useLiveQuery(() => db.workoutSessions.toArray(), [], []);
   const runs = useLiveQuery(() => db.runs.toArray(), [], []);
   const readiness = useLiveQuery(() => db.readiness.toArray(), [], []);
-  const matchedExternalCount = useLiveQuery(() => db.externalWorkouts.filter((item) => Boolean(item.matchedTemplateId)).count()) ?? 0;
+  const matchedExternalWorkouts = useLiveQuery(() => db.externalWorkouts.filter((item) => Boolean(item.matchedTemplateId)).toArray(), [], []);
+  const plannedSessionsPerWeek = useLiveQuery(async () => (
+    await getResolvedTemplates()
+  ).filter((item) => item.kind === "strength" || item.kind === "run").length, [], 1);
   const blockWeek = useLiveQuery(() => getActiveBlockWeek(), [], 1);
 
   const summary = useMemo(
-    () => buildProgressSummary({ workouts, runs, readiness, blockWeek, matchedExternalCount }),
-    [workouts, runs, readiness, blockWeek, matchedExternalCount],
+    () => buildProgressSummary({ workouts, runs, readiness, blockWeek, plannedSessionsPerWeek, matchedExternalWorkouts }),
+    [workouts, runs, readiness, blockWeek, plannedSessionsPerWeek, matchedExternalWorkouts],
   );
   const weeksLogged = countRecentWeeksWithData(workouts, runs);
 
@@ -34,7 +37,7 @@ export function ProgressScreen() {
       </header>
 
       <div className="metric-strip">
-        <div><strong>{summary.adherencePercent}%</strong><span>Aderenza, domeniche escluse</span></div>
+        <div><strong>{summary.adherencePercent}%</strong><span>Aderenza blocco corrente</span></div>
         <div><strong>{summary.averageRir || "—"}</strong><span>RIR medio ultima settimana</span></div>
         <div><strong>{summary.latestWeekDistanceKm ? `${summary.latestWeekDistanceKm} km` : "—"}</strong><span>Corsa questa settimana</span></div>
       </div>

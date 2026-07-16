@@ -53,12 +53,60 @@ describe("buildProgressSummary", () => {
       runs,
       readiness: [],
       blockWeek: 2,
+      plannedSessionsPerWeek: 2,
+      now: new Date("2026-07-16T12:00:00.000Z"),
     });
 
     expect(summary.weeksLogged).toBeGreaterThan(0);
     expect(summary.runWeekly[0]?.distance).toBe(6);
-    expect(summary.adherencePercent).toBeGreaterThan(0);
-    const withMatchedHealth = buildProgressSummary({ workouts, runs, readiness: [], blockWeek: 2, matchedExternalCount: 1 });
-    expect(withMatchedHealth.adherencePercent).toBeGreaterThan(summary.adherencePercent);
+    expect(summary.adherencePercent).toBe(50);
+    const duplicatedHealth = buildProgressSummary({
+      workouts,
+      runs,
+      readiness: [],
+      blockWeek: 2,
+      plannedSessionsPerWeek: 2,
+      now: new Date("2026-07-16T12:00:00.000Z"),
+      matchedExternalWorkouts: [{ startDate: "2026-07-07T11:00:00.000Z", matchedTemplateId: "strength-a" }],
+    });
+    expect(duplicatedHealth.adherencePercent).toBe(summary.adherencePercent);
+
+    const additionalHealth = buildProgressSummary({
+      workouts,
+      runs,
+      readiness: [],
+      blockWeek: 2,
+      plannedSessionsPerWeek: 2,
+      now: new Date("2026-07-16T12:00:00.000Z"),
+      matchedExternalWorkouts: [
+        { startDate: "2026-07-10T11:00:00.000Z", matchedTemplateId: "strength-b" },
+        { startDate: "2026-07-10T12:00:00.000Z", matchedTemplateId: "strength-b" },
+        { startDate: "2026-06-20T11:00:00.000Z", matchedTemplateId: "strength-c" },
+      ],
+    });
+    expect(additionalHealth.adherencePercent).toBe(75);
+  });
+
+  it("esclude dall'aderenza le attività precedenti al blocco corrente", () => {
+    const oldWorkout: WorkoutSession = {
+      id: "old",
+      templateId: "strength-a",
+      date: "2026-05-01",
+      status: "complete",
+      setLogs: [],
+      modifiedExerciseIds: [],
+      skippedExerciseIds: [],
+    };
+
+    const summary = buildProgressSummary({
+      workouts: [oldWorkout],
+      runs: [],
+      readiness: [],
+      blockWeek: 2,
+      plannedSessionsPerWeek: 4,
+      now: new Date("2026-07-16T12:00:00.000Z"),
+    });
+
+    expect(summary.adherencePercent).toBe(0);
   });
 });

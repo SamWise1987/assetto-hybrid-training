@@ -8,6 +8,9 @@ test("cliente mantiene piano, Health, analisi e inbox anche dopo reload offline"
   await expect(page.getByText("Alex", { exact: true }).first()).toBeVisible();
   await expect(page.getByText(/Piano Hybrid test|Corsa facile/).first()).toBeVisible();
 
+  await page.getByRole("button", { name: "Progressi" }).click();
+  await expect(page.getByText("Aderenza blocco corrente")).toBeVisible();
+
   await page.getByRole("button", { name: "Analisi" }).click();
   await expect(page.getByRole("heading", { name: "Fonti dei dati" })).toBeVisible();
   await expect(page.getByText(/apple health/i).first()).toBeVisible();
