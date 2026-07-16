@@ -4,6 +4,7 @@ import { getRemoteUserProfile, staffClient, verifyActiveTrainerClient } from "@/
 import { createServiceSupabaseClient } from "@/lib/supabase/server";
 import { dispatchPush } from "@/lib/push-server";
 import { notificationDedupeKey } from "@/lib/notification-events";
+import { verifyActiveStrengthTemplate } from "@/lib/health-matching-server";
 
 const workoutSchema = z.object({
   id: z.string().uuid(),
@@ -62,8 +63,7 @@ export async function POST(request: Request) {
       start_date: item.startDate, end_date: item.endDate, duration_minutes: item.durationMinutes,
       distance_km: item.distanceKm ?? null, calories_kcal: item.caloriesKcal ?? null,
       average_heart_rate: item.averageHeartRate ?? null, max_heart_rate: item.maxHeartRate ?? null,
-      source_name: item.sourceName ?? null, matched_template_id: item.matchedTemplateId ?? null,
-      matched_at: item.matchedAt ?? null, imported_at: item.importedAt,
+      source_name: item.sourceName ?? null, imported_at: item.importedAt,
     }));
     const { error } = await client.from("external_workouts").upsert(rows, { onConflict: "user_id,source,external_id" });
     if (error) return jsonError(error.message, 500);
@@ -110,6 +110,23 @@ export async function PATCH(request: Request) {
   if (!parsed.success) return jsonError("Abbinamento non valido.");
   const client = staffClient(request);
   if (!client) return jsonError("Supabase non configurato.", 503);
+  const { data: workout, error: workoutError } = await client.from("external_workouts")
+    .select("id,kind")
+    .eq("id", parsed.data.id)
+    .eq("user_id", profile.userId)
+    .maybeSingle();
+  if (workoutError) return jsonError(workoutError.message, 500);
+  if (!workout) return jsonError("Attività non trovata.", 404);
+  if (workout.kind !== "strength") return jsonError("Solo le attività di forza possono essere associate a una scheda.");
+
+  const validation = await verifyActiveStrengthTemplate(client, profile.email, parsed.data.templateId);
+  if (!validation.allowed) {
+    if (validation.error) return jsonError(validation.error, 500);
+    return jsonError(validation.reason === "no_active_plan"
+      ? "Non hai un piano attivo a cui associare l’attività."
+      : "La scheda scelta non appartiene al tuo piano di forza attivo.", 409);
+  }
+
   const { data, error } = await client.from("external_workouts")
     .update({ matched_template_id: parsed.data.templateId, matched_at: new Date().toISOString() })
     .eq("id", parsed.data.id)

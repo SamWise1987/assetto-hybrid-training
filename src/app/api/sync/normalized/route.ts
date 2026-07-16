@@ -5,6 +5,7 @@ import type { Database } from "@/lib/supabase/client";
 import { createServiceSupabaseClient } from "@/lib/supabase/server";
 import { dispatchPush } from "@/lib/push-server";
 import { notificationDedupeKey } from "@/lib/notification-events";
+import { verifyActiveStrengthTemplate } from "@/lib/health-matching-server";
 
 const itemSchema = z.object({
   entity: z.enum(["profile", "workout", "run", "external_workout", "readiness", "follow_up", "notification_read"]),
@@ -81,6 +82,17 @@ export async function POST(request: Request) {
       if (inserted) completed.push({ type: "follow_up", entityId: item.entityId });
     } else if (item.entity === "external_workout") {
       const payload = item.payload as Record<string, unknown>;
+      const matchedTemplateId = typeof payload.matchedTemplateId === "string" ? payload.matchedTemplateId : undefined;
+      if (matchedTemplateId) {
+        if (payload.kind !== "strength") return jsonError("Solo le attività di forza possono essere associate a una scheda.");
+        const validation = await verifyActiveStrengthTemplate(client, profile.email, matchedTemplateId);
+        if (!validation.allowed) {
+          if (validation.error) return jsonError(validation.error, 500);
+          return jsonError(validation.reason === "no_active_plan"
+            ? "Non hai un piano attivo a cui associare l’attività."
+            : "La scheda scelta non appartiene al tuo piano di forza attivo.", 409);
+        }
+      }
       const { error } = await client.from("external_workouts").upsert({
         id: item.entityId,
         user_id: profile.userId,
@@ -97,8 +109,7 @@ export async function POST(request: Request) {
         average_heart_rate: typeof payload.averageHeartRate === "number" ? payload.averageHeartRate : null,
         max_heart_rate: typeof payload.maxHeartRate === "number" ? payload.maxHeartRate : null,
         source_name: typeof payload.sourceName === "string" ? payload.sourceName : null,
-        matched_template_id: typeof payload.matchedTemplateId === "string" ? payload.matchedTemplateId : null,
-        matched_at: typeof payload.matchedAt === "string" ? payload.matchedAt : null,
+        ...(matchedTemplateId ? { matched_template_id: matchedTemplateId, matched_at: new Date().toISOString() } : {}),
         imported_at: String(payload.importedAt ?? new Date().toISOString()),
       }, { onConflict: "user_id,source,external_id" });
       if (error) return jsonError(error.message, 500);
