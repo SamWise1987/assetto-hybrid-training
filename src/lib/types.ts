@@ -195,7 +195,7 @@ export interface AppNotification {
   id: Id;
   recipientUserId?: Id;
   actorUserId?: Id;
-  type: "invite" | "plan_assigned" | "plan_updated" | "suggestion" | "workout_completed" | "run_completed" | "follow_up" | "safety" | "sync_error" | "health_issue";
+  type: "invite" | "plan_assigned" | "plan_updated" | "suggestion" | "workout_completed" | "run_completed" | "external_workout_completed" | "follow_up" | "safety" | "sync_error" | "health_issue";
   title: string;
   body: string;
   href?: string;

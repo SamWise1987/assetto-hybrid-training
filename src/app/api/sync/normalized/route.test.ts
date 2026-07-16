@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   staffClient: vi.fn(),
   verifyActiveTrainerClient: vi.fn(),
   verifyActiveStrengthTemplate: vi.fn(),
+  createServiceSupabaseClient: vi.fn(),
+  dispatchPush: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/profiles", () => ({
@@ -12,8 +14,8 @@ vi.mock("@/lib/supabase/profiles", () => ({
   staffClient: mocks.staffClient,
   verifyActiveTrainerClient: mocks.verifyActiveTrainerClient,
 }));
-vi.mock("@/lib/supabase/server", () => ({ createServiceSupabaseClient: vi.fn() }));
-vi.mock("@/lib/push-server", () => ({ dispatchPush: vi.fn() }));
+vi.mock("@/lib/supabase/server", () => ({ createServiceSupabaseClient: mocks.createServiceSupabaseClient }));
+vi.mock("@/lib/push-server", () => ({ dispatchPush: mocks.dispatchPush }));
 vi.mock("@/lib/health-matching-server", () => ({ verifyActiveStrengthTemplate: mocks.verifyActiveStrengthTemplate }));
 
 import { GET, POST } from "./route";
@@ -99,7 +101,12 @@ describe("POST /api/sync/normalized", () => {
 
   it("un reimport senza match non cancella l'abbinamento cloud esistente", async () => {
     const upsert = vi.fn(async () => ({ error: null }));
-    mocks.staffClient.mockReturnValue({ from: vi.fn(() => ({ upsert })) });
+    const relationshipQuery = {
+      select: vi.fn(() => relationshipQuery),
+      eq: vi.fn(() => relationshipQuery),
+      then: (resolve: (value: unknown) => unknown) => resolve({ data: [], error: null }),
+    };
+    mocks.staffClient.mockReturnValue({ from: vi.fn((table: string) => table === "trainer_clients" ? relationshipQuery : { upsert }) });
 
     const response = await POST(new Request("http://localhost/api/sync/normalized", {
       method: "POST",
@@ -118,5 +125,48 @@ describe("POST /api/sync/normalized", () => {
 
     expect(response.status).toBe(200);
     expect(upsert).toHaveBeenCalledWith(expect.not.objectContaining({ matched_template_id: expect.anything(), matched_at: expect.anything() }), { onConflict: "user_id,source,external_id" });
+  });
+
+  it("crea inbox e push per una nuova attività esterna sincronizzata", async () => {
+    const externalUpsert = vi.fn(async () => ({ error: null }));
+    const relationships = {
+      select: vi.fn(() => relationships),
+      eq: vi.fn(() => relationships),
+      then: (resolve: (value: unknown) => unknown) => resolve({ data: [{ trainer_user_id: "trainer-1" }], error: null }),
+    };
+    mocks.staffClient.mockReturnValue({
+      from: vi.fn((table: string) => table === "trainer_clients" ? relationships : { upsert: externalUpsert }),
+    });
+    const notificationSelect = vi.fn(async () => ({ data: [{ recipient_user_id: "trainer-1" }], error: null }));
+    const notificationUpsert = vi.fn(() => ({ select: notificationSelect }));
+    mocks.createServiceSupabaseClient.mockReturnValue({ from: vi.fn(() => ({ upsert: notificationUpsert })) });
+
+    const response = await POST(new Request("http://localhost/api/sync/normalized", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: [{
+        entity: "external_workout",
+        entityId: "55555555-5555-4555-8555-555555555555",
+        payload: {
+          externalId: "gpx-1", source: "gpx", platform: "web", workoutType: "run", kind: "run",
+          startDate: "2026-07-16T08:00:00.000Z", endDate: "2026-07-16T08:30:00.000Z",
+          durationMinutes: 30, importedAt: "2026-07-16T08:31:00.000Z",
+        },
+      }] }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(notificationUpsert).toHaveBeenCalledWith([
+      expect.objectContaining({
+        recipient_user_id: "trainer-1",
+        type: "external_workout_completed",
+        entity_type: "external_workout",
+      }),
+    ], { onConflict: "dedupe_key", ignoreDuplicates: true });
+    expect(mocks.dispatchPush).toHaveBeenCalledWith(["trainer-1"], {
+      title: "Nuova attività registrata",
+      body: "Un cliente ha completato un allenamento.",
+      href: "/?tab=clients",
+    });
   });
 });

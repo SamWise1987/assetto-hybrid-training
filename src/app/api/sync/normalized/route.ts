@@ -19,7 +19,7 @@ export async function POST(request: Request) {
   const parsed = z.object({ items: z.array(itemSchema).min(1).max(200) }).safeParse(await request.json());
   if (!parsed.success) return jsonError("Coda sincronizzazione non valida.");
   const client = staffClient(request); if (!client) return jsonError("Supabase non configurato.", 503);
-  const completed: Array<{ type: "workout_completed" | "run_completed" | "follow_up" | "safety"; entityId: string }> = [];
+  const completed: Array<{ type: "workout_completed" | "run_completed" | "external_workout_completed" | "follow_up" | "safety"; entityId: string }> = [];
 
   for (const item of parsed.data.items) {
     if (item.entity === "profile") {
@@ -82,6 +82,8 @@ export async function POST(request: Request) {
       if (inserted) completed.push({ type: "follow_up", entityId: item.entityId });
     } else if (item.entity === "external_workout") {
       const payload = item.payload as Record<string, unknown>;
+      const externalId = String(payload.externalId ?? item.entityId);
+      const source = String(payload.source ?? "gpx");
       const matchedTemplateId = typeof payload.matchedTemplateId === "string" ? payload.matchedTemplateId : undefined;
       if (matchedTemplateId) {
         if (payload.kind !== "strength") return jsonError("Solo le attività di forza possono essere associate a una scheda.");
@@ -96,8 +98,8 @@ export async function POST(request: Request) {
       const { error } = await client.from("external_workouts").upsert({
         id: item.entityId,
         user_id: profile.userId,
-        external_id: String(payload.externalId ?? item.entityId),
-        source: String(payload.source ?? "gpx"),
+        external_id: externalId,
+        source,
         platform: String(payload.platform ?? "web"),
         workout_type: String(payload.workoutType ?? "other"),
         kind: String(payload.kind ?? "other"),
@@ -113,6 +115,7 @@ export async function POST(request: Request) {
         imported_at: String(payload.importedAt ?? new Date().toISOString()),
       }, { onConflict: "user_id,source,external_id" });
       if (error) return jsonError(error.message, 500);
+      completed.push({ type: "external_workout_completed", entityId: item.entityId });
     }
   }
   if (completed.length) {
@@ -129,10 +132,10 @@ export async function POST(request: Request) {
         recipient_user_id: recipient,
         actor_user_id: profile.userId,
         type: event.type,
-        title: event.type === "safety" ? "Controllo trainer richiesto" : event.type === "run_completed" ? "Corsa completata" : event.type === "follow_up" ? "Risposta 24 ore ricevuta" : "Allenamento completato",
+        title: event.type === "safety" ? "Controllo trainer richiesto" : event.type === "run_completed" ? "Corsa completata" : event.type === "external_workout_completed" ? "Nuova attività sincronizzata" : event.type === "follow_up" ? "Risposta 24 ore ricevuta" : "Allenamento completato",
         body: event.type === "safety" ? "Una registrazione del cliente richiede una verifica. Apri la dashboard per i dettagli." : event.type === "follow_up" ? "Il cliente ha registrato il controllo di recupero." : "Il cliente ha registrato una nuova attività.",
         href: "/?tab=clients",
-        entity_type: event.type === "run_completed" ? "run_session" : event.type === "follow_up" ? "follow_up" : event.type === "safety" ? "safety_event" : "training_session",
+        entity_type: event.type === "run_completed" ? "run_session" : event.type === "external_workout_completed" ? "external_workout" : event.type === "follow_up" ? "follow_up" : event.type === "safety" ? "safety_event" : "training_session",
         entity_id: event.entityId,
         dedupe_key: notificationDedupeKey({ recipientUserId: recipient, type: event.type, entityId: event.entityId }),
       }))), { onConflict: "dedupe_key", ignoreDuplicates: true }).select("recipient_user_id");

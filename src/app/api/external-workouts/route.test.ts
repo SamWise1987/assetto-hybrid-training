@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   staffClient: vi.fn(),
   verifyActiveTrainerClient: vi.fn(),
   verifyActiveStrengthTemplate: vi.fn(),
+  notifyTrainersOfExternalWorkouts: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/profiles", () => ({
@@ -15,8 +16,9 @@ vi.mock("@/lib/supabase/profiles", () => ({
 vi.mock("@/lib/supabase/server", () => ({ createServiceSupabaseClient: vi.fn() }));
 vi.mock("@/lib/push-server", () => ({ dispatchPush: vi.fn() }));
 vi.mock("@/lib/health-matching-server", () => ({ verifyActiveStrengthTemplate: mocks.verifyActiveStrengthTemplate }));
+vi.mock("@/lib/trainer-activity-notifications", () => ({ notifyTrainersOfExternalWorkouts: mocks.notifyTrainersOfExternalWorkouts }));
 
-import { GET, PATCH } from "./route";
+import { GET, PATCH, POST } from "./route";
 
 const workoutId = "11111111-1111-4111-8111-111111111111";
 const athleteId = "22222222-2222-4222-8222-222222222222";
@@ -51,12 +53,29 @@ function matchRequest() {
   });
 }
 
+function importedWorkout(id: string, startDate: string) {
+  return {
+    id,
+    externalId: `health-${id}`,
+    source: "apple_health",
+    platform: "ios",
+    workoutType: "functionalStrengthTraining",
+    kind: "strength",
+    startDate,
+    endDate: new Date(Date.parse(startDate) + 45 * 60_000).toISOString(),
+    durationMinutes: 45,
+    sourceName: "Apple Watch",
+    importedAt: "2026-07-16T10:00:00.000Z",
+  };
+}
+
 describe("PATCH /api/external-workouts", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getRemoteUserProfile.mockResolvedValue({ userId: "athlete-id", role: "athlete" });
     mocks.verifyActiveTrainerClient.mockResolvedValue({ allowed: true, error: null });
     mocks.verifyActiveStrengthTemplate.mockResolvedValue({ allowed: true });
+    mocks.notifyTrainersOfExternalWorkouts.mockResolvedValue({ notified: 1 });
   });
 
   it("non espone i dettagli Health agli amministratori", async () => {
@@ -121,5 +140,42 @@ describe("PATCH /api/external-workouts", () => {
 
     expect(response.status).toBe(400);
     expect(mocks.verifyActiveStrengthTemplate).not.toHaveBeenCalled();
+  });
+
+  it("notifica soltanto le attività nella finestra incrementale Health", async () => {
+    const recentId = "33333333-3333-4333-8333-333333333333";
+    const oldId = "44444444-4444-4444-8444-444444444444";
+    const previousStateQuery = {
+      select: vi.fn(() => previousStateQuery),
+      eq: vi.fn(() => previousStateQuery),
+      maybeSingle: vi.fn(async () => ({ data: { last_successful_sync_at: "2026-07-15T10:00:00.000Z" }, error: null })),
+      upsert: vi.fn(async () => ({ error: null })),
+    };
+    const workoutUpsert = vi.fn(async () => ({ error: null }));
+    mocks.staffClient.mockReturnValue({
+      from: vi.fn((table: string) => table === "health_sync_states" ? previousStateQuery : { upsert: workoutUpsert }),
+    });
+
+    const response = await POST(new Request("http://localhost/api/external-workouts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        workouts: [
+          importedWorkout(recentId, "2026-07-14T10:00:00.000Z"),
+          importedWorkout(oldId, "2026-07-10T10:00:00.000Z"),
+        ],
+        healthState: {
+          platform: "ios",
+          status: "success",
+          lastAttemptAt: "2026-07-16T10:00:00.000Z",
+          lastSuccessfulSyncAt: "2026-07-16T10:00:00.000Z",
+          imported: 1,
+          skipped: 1,
+        },
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.notifyTrainersOfExternalWorkouts).toHaveBeenCalledWith("athlete-id", [recentId]);
   });
 });
