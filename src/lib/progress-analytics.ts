@@ -1,7 +1,8 @@
-import { format, startOfWeek } from "date-fns";
+import { format, startOfWeek, subWeeks } from "date-fns";
 import { EXERCISES } from "./program";
 import { exerciseIdForPrescription } from "./prescription-index";
-import type { DailyReadiness, RunSession, WorkoutSession } from "./types";
+import { countUniqueMatchedExternal } from "./adherence-dedupe";
+import type { DailyReadiness, ExternalWorkout, RunSession, WorkoutSession } from "./types";
 
 export interface WeeklyRunStats {
   week: string;
@@ -63,7 +64,9 @@ export function buildProgressSummary(input: {
   runs: readonly RunSession[];
   readiness: readonly DailyReadiness[];
   blockWeek: number;
-  matchedExternalCount?: number;
+  plannedSessionsPerWeek: number;
+  matchedExternalWorkouts?: readonly Pick<ExternalWorkout, "startDate" | "matchedTemplateId">[];
+  now?: Date;
 }): ProgressSummary {
   const completedWorkouts = input.workouts.filter((session) => session.status === "complete");
   const completedRuns = input.runs.filter((run) => run.status === "complete");
@@ -114,16 +117,30 @@ export function buildProgressSummary(input: {
     .sort((a, b) => b.sets - a.sets)
     .slice(0, 6);
 
-  const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+  const now = input.now ?? new Date();
+  const weekStart = startOfWeek(now, { weekStartsOn: 1 });
   const latestWeekRuns = completedRuns.filter((run) => new Date(`${run.date}T12:00:00`) >= weekStart);
   const latestWeekLogs = completedWorkouts
     .filter((session) => new Date(`${session.date}T12:00:00`) >= weekStart)
     .flatMap((session) => session.setLogs);
 
-  const plannedSessions = Math.max(1, input.blockWeek * 6);
+  const normalizedBlockWeek = Math.max(1, Math.min(8, input.blockWeek));
+  const blockStart = format(subWeeks(weekStart, normalizedBlockWeek - 1), "yyyy-MM-dd");
+  const today = format(now, "yyyy-MM-dd");
+  const completedBlockWorkouts = completedWorkouts.filter((session) => session.date >= blockStart && session.date <= today);
+  const completedBlockRuns = completedRuns.filter((run) => run.date >= blockStart && run.date <= today);
+  const matchedExternalCount = countUniqueMatchedExternal({
+    fromDate: blockStart,
+    toDate: today,
+    completedWorkouts: completedBlockWorkouts.map((session) => ({ date: session.date, templateId: session.templateId })),
+    matchedExternal: (input.matchedExternalWorkouts ?? []).flatMap((workout) => workout.matchedTemplateId
+      ? [{ date: workout.startDate.slice(0, 10), templateId: workout.matchedTemplateId }]
+      : []),
+  });
+  const plannedSessions = Math.max(1, normalizedBlockWeek * Math.max(1, input.plannedSessionsPerWeek));
   const adherencePercent = Math.min(
     100,
-    Math.round(((completedWorkouts.length + completedRuns.length + (input.matchedExternalCount ?? 0)) / plannedSessions) * 100),
+    Math.round(((completedBlockWorkouts.length + completedBlockRuns.length + matchedExternalCount) / plannedSessions) * 100),
   );
 
   return {
