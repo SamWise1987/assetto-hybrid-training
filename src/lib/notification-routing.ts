@@ -10,6 +10,7 @@ const NOTIFICATION_TABS = new Set<AppTab>([
   "coach",
   "inbox",
   "settings",
+  "more",
 ]);
 
 /**

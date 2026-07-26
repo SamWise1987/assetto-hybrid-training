@@ -61,7 +61,7 @@
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 	<key>NSHealthShareUsageDescription</key>
-	<string>RobertaFunctional legge i tuoi allenamenti di corsa, camminata e forza da Apple Salute per aggiornare il diario e il piano di allenamento.</string>
+	<string>RobertaFunctional legge da Apple Salute allenamenti (corsa, camminata, forza), frequenza cardiaca, frequenza respiratoria, saturazione, passi e sonno per aggiornare il diario, i progressi e il piano.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>RobertaFunctional scrive dati salute solo se lo richiedi esplicitamente.</string>
 </dict>

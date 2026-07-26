@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { ArrowLeft, ArrowRight, Check, Info, Lightbulb, RotateCcw, ShieldAlert, TimerReset, Undo2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Info, Lightbulb, Minus, Plus, ShieldAlert, TimerReset, Undo2 } from "lucide-react";
 import type { CSSProperties } from "react";
 import { z } from "zod";
 import type { DailyAdjustment } from "@/lib/autoregulation";
@@ -10,7 +10,7 @@ import { completeWorkoutSession, db, enqueueSync } from "@/lib/db";
 import { getExerciseById } from "@/lib/exercise-library";
 import { EXERCISES } from "@/lib/program";
 import type { DailyReadiness, SetLog, WorkoutSession, WorkoutTemplate } from "@/lib/types";
-import { Button, Field, ScaleControl, Toggle } from "../../ui";
+import { Button, ScaleControl, Toggle } from "../../ui";
 import { adjustForReadiness } from "@/lib/autoregulation";
 import { formatPreciseDuration } from "@/lib/duration";
 import { currentPlatform } from "@/lib/platform";
@@ -114,29 +114,40 @@ function CheckIn({
   onBack: () => void;
   onContinue: () => void;
 }) {
+  const [showDetails, setShowDetails] = useState(false);
   const update = <K extends keyof DailyReadiness>(key: K, value: DailyReadiness[K]) =>
     setReadiness({ ...readiness, [key]: value });
   const adjustment = adjustForReadiness(readiness);
 
   return (
     <div className="flow-screen">
-      <ScreenHeader title="Check-in" caption="30 secondi. Scorri le barre per dire come stai oggi." onBack={onBack} />
+      <ScreenHeader title="Come stai?" caption="Tre scorciatoie, poi vai. I dettagli clinici restano disponibili." onBack={onBack} />
       <ScaleControl label="Energia" value={readiness.energy} min={1} max={5} lowLabel="Bassa" highLabel="Alta" onChange={(value) => update("energy", value as DailyReadiness["energy"])} />
       <ScaleControl label="Sonno" value={readiness.sleep} min={1} max={5} lowLabel="Scarso" highLabel="Ottimo" onChange={(value) => update("sleep", value as DailyReadiness["sleep"])} />
-      <ScaleControl label="Indolenzimento gambe" value={readiness.legSoreness} min={0} max={10} lowLabel="Nessuno" highLabel="Molto" onChange={(value) => update("legSoreness", value)} />
-      <ScaleControl label="Dolore spalla destra" value={readiness.shoulderPain} min={0} max={10} lowLabel="Nessuno" highLabel="Forte" onChange={(value) => update("shoulderPain", value)} />
-      <ScaleControl label="Dolore cervicale" value={readiness.cervicalPain} min={0} max={10} lowLabel="Nessuno" highLabel="Forte" onChange={(value) => update("cervicalPain", value)} />
+      <ScaleControl label="Gambe" value={readiness.legSoreness} min={0} max={10} lowLabel="Ok" highLabel="Molto" onChange={(value) => update("legSoreness", value)} />
+
       <div className="safety-toggles">
         <Toggle danger label="Formicolio, intorpidimento o debolezza a braccio/mano" checked={readiness.armNeurologicalSymptoms} onChange={(value) => update("armNeurologicalSymptoms", value)} />
         <Toggle danger label="Peggioramento di equilibrio o coordinazione" checked={readiness.coordinationWorsened} onChange={(value) => update("coordinationWorsened", value)} />
       </div>
+
+      <Button variant="ghost" onClick={() => setShowDetails(!showDetails)}>
+        {showDetails ? "Nascondi dettagli dolore" : "Aggiungi dettagli dolore"}
+      </Button>
+      {showDetails ? (
+        <>
+          <ScaleControl label="Dolore spalla destra" value={readiness.shoulderPain} min={0} max={10} lowLabel="Nessuno" highLabel="Forte" onChange={(value) => update("shoulderPain", value)} />
+          <ScaleControl label="Dolore cervicale" value={readiness.cervicalPain} min={0} max={10} lowLabel="Nessuno" highLabel="Forte" onChange={(value) => update("cervicalPain", value)} />
+        </>
+      ) : null}
+
       {adjustment.reasons.length ? (
         <aside className={adjustment.hardStopUpperBody ? "rule-preview danger" : "rule-preview"}>
           <strong>Adattamento previsto</strong>
           {adjustment.reasons.map((reason) => <p key={reason}>{reason}</p>)}
         </aside>
       ) : null}
-      <Button onClick={onContinue}>{adjustment.hardStopUpperBody ? "Continua allo stop di sicurezza" : "Conferma e continua"}</Button>
+      <Button onClick={onContinue}>{adjustment.hardStopUpperBody ? "Continua allo stop di sicurezza" : "Continua"}</Button>
     </div>
   );
 }
@@ -167,7 +178,7 @@ function Warmup({ onBack, onContinue }: { onBack: () => void; onContinue: () => 
 
   return (
     <div className="flow-screen">
-      <ScreenHeader title="Riscaldamento" caption="Circa 8 minuti. Ogni elemento può essere saltato." onBack={onBack} />
+      <ScreenHeader title="Riscaldamento" caption="Opzionale. Puoi saltarlo e andare subito alle serie." onBack={onBack} />
       <ol className="warmup-list">
         {items.map((item, index) => (
           <li key={item}>
@@ -182,20 +193,23 @@ function Warmup({ onBack, onContinue }: { onBack: () => void; onContinue: () => 
           </li>
         ))}
       </ol>
-      <Button onClick={onContinue}>Vai alla seduta <ArrowRight /></Button>
+      <div className="primary-actions primary-actions-stack">
+        <Button onClick={onContinue}>Vai alla seduta <ArrowRight /></Button>
+        <Button variant="secondary" onClick={onContinue}>Salta riscaldamento</Button>
+      </div>
     </div>
   );
 }
 
-function formFromPrescription(prescription: WorkoutTemplate["prescriptions"][number]) {
+function formFromPrescription(prescription: WorkoutTemplate["prescriptions"][number], previous?: SetLog) {
   return {
-    weight: prescription.targetLoadKg ?? 16,
-    dumbbells: 2,
-    reps: prescription.repRange?.[0] ?? 10,
-    rir: prescription.targetRir[0] ?? 3,
-    shoulderPain: 0,
-    cervicalPain: 0,
-    technique: "stable" as SetLog["technique"],
+    weight: previous?.weightPerDumbbellKg ?? prescription.targetLoadKg ?? 16,
+    dumbbells: previous?.dumbbellCount ?? 2,
+    reps: previous?.reps ?? prescription.repRange?.[0] ?? 10,
+    rir: previous?.rir ?? prescription.targetRir[0] ?? 3,
+    shoulderPain: previous?.shoulderPain ?? 0,
+    cervicalPain: previous?.cervicalSymptoms ?? 0,
+    technique: previous?.technique ?? ("stable" as SetLog["technique"]),
   };
 }
 
@@ -236,6 +250,37 @@ function RestTimer({
   );
 }
 
+function StepperField({
+  label,
+  value,
+  step,
+  min,
+  max,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  step: number;
+  min: number;
+  max: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <div className="stepper-field">
+      <span>{label}</span>
+      <div className="stepper-controls">
+        <button type="button" aria-label={`Diminuisci ${label}`} onClick={() => onChange(Math.max(min, Math.round((value - step) * 10) / 10))}>
+          <Minus />
+        </button>
+        <strong>{value}</strong>
+        <button type="button" aria-label={`Aumenta ${label}`} onClick={() => onChange(Math.min(max, Math.round((value + step) * 10) / 10))}>
+          <Plus />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Workout({
   template,
   readinessId,
@@ -253,6 +298,7 @@ function Workout({
   const [error, setError] = useState("");
   const [restLeft, setRestLeft] = useState<number | null>(null);
   const [showRirHelp, setShowRirHelp] = useState(false);
+  const [showExtra, setShowExtra] = useState(false);
   const [elapsedLabel, setElapsedLabel] = useState("0:00");
   const active = template.prescriptions[exerciseIndex];
   const exercise = getExerciseById(active.exerciseId) ?? EXERCISES.find((entry) => entry.id === active.exerciseId)!;
@@ -278,10 +324,13 @@ function Workout({
   }, [sessionStartedAt]);
 
   const goToExercise = (index: number) => {
+    const prescription = template.prescriptions[index];
+    const previous = [...logs].reverse().find((entry) => entry.prescriptionId === prescription.id);
     setExerciseIndex(index);
-    setForm(formFromPrescription(template.prescriptions[index]));
+    setForm(formFromPrescription(prescription, previous));
     setRestLeft(null);
     setError("");
+    setShowExtra(false);
   };
 
   const saveSet = () => {
@@ -313,6 +362,7 @@ function Workout({
       confirmedAt: new Date().toISOString(),
     };
     setLogs([...logs, log]);
+    setForm(formFromPrescription(active, log));
     setError("");
     if (activeLogs.length + 1 < active.sets) {
       setRestLeft(restTarget);
@@ -359,12 +409,11 @@ function Workout({
           {exercise.unilateral ? "per lato" : ""}
         </strong>
         <span>
-          RIR {active.targetRir.join("–")} · tempo {active.tempo}
-          {active.targetLoadKg != null ? ` · carico ${active.targetLoadKg} kg` : active.variant !== "standard" ? ` · ${active.variant}` : ""}
+          RIR {active.targetRir.join("–")}
+          {active.targetLoadKg != null ? ` · ${active.targetLoadKg} kg` : ""}
           {" · "}pausa {restTarget} s
         </span>
         {active.hint ? <p className="scheda-hint"><Lightbulb size={16} aria-hidden="true" /> {active.hint}</p> : null}
-        <p className="quiet-note">ROM: {active.rangeOfMotion}</p>
       </div>
       <div className="set-number">
         <span>Serie</span>
@@ -372,63 +421,81 @@ function Workout({
       </div>
       {setsComplete ? (
         <p className="success-message" role="status">
-          Volume completo: {active.sets} serie su {active.sets}. Passa all’esercizio successivo o al check-out.
+          Volume completo. Passa all’esercizio successivo o al check-out.
         </p>
       ) : null}
-      <div className="set-grid">
-        <Field label="kg / manubrio" type="number" inputMode="decimal" value={form.weight} onChange={(e) => setForm({ ...form, weight: Number(e.target.value) })} />
-        <Field label="n. manubri" type="number" inputMode="numeric" value={form.dumbbells} onChange={(e) => setForm({ ...form, dumbbells: Number(e.target.value) })} />
-        <Field label="ripetizioni" type="number" inputMode="numeric" value={form.reps} onChange={(e) => setForm({ ...form, reps: Number(e.target.value) })} />
-        <label className="field">
-          <span className="field-with-info">
-            RIR 0–5
-            <button type="button" className="info-chip" aria-label="Cos’è il RIR" onClick={() => setShowRirHelp(!showRirHelp)}>
-              <Info size={14} />
-            </button>
-          </span>
-          <input type="number" inputMode="numeric" value={form.rir} onChange={(e) => setForm({ ...form, rir: Number(e.target.value) })} />
-        </label>
+
+      <div className="stepper-grid">
+        <StepperField label="kg" value={form.weight} step={1} min={0} max={100} onChange={(weight) => setForm({ ...form, weight })} />
+        <StepperField label="reps" value={form.reps} step={1} min={1} max={100} onChange={(reps) => setForm({ ...form, reps })} />
+        <StepperField label="RIR" value={form.rir} step={1} min={0} max={5} onChange={(rir) => setForm({ ...form, rir })} />
+        <StepperField label="manubri" value={form.dumbbells} step={1} min={0} max={2} onChange={(dumbbells) => setForm({ ...form, dumbbells })} />
       </div>
+      <button type="button" className="info-chip inline-help" onClick={() => setShowRirHelp(!showRirHelp)}>
+        <Info size={14} /> Cos’è il RIR?
+      </button>
       {showRirHelp ? (
         <aside className="acronym-help">
           <strong>RIR · Reps In Reserve</strong>
-          <p>Ripetizioni che ti restano in serbatoio a fine serie senza perdere la tecnica. RIR 3 ≈ ancora 3 rip possibili.</p>
+          <p>Ripetizioni che ti restano in serbatoio a fine serie senza perdere la tecnica.</p>
         </aside>
       ) : null}
-      <ScaleControl label="Dolore spalla" value={form.shoulderPain} min={0} max={10} lowLabel="Nessuno" highLabel="Forte" onChange={(shoulderPain) => setForm({ ...form, shoulderPain })} />
-      <ScaleControl label="Sintomi cervicali" value={form.cervicalPain} min={0} max={10} lowLabel="Nessuno" highLabel="Forti" onChange={(cervicalPain) => setForm({ ...form, cervicalPain })} />
-      <label className="field">
-        <span>Qualità tecnica</span>
-        <select value={form.technique} onChange={(e) => setForm({ ...form, technique: e.target.value as SetLog["technique"] })}>
-          <option value="stable">Stabile</option>
-          <option value="uncertain">Incerta</option>
-          <option value="stopped">Interrotta</option>
-        </select>
-      </label>
+
+      <Button variant="ghost" onClick={() => setShowExtra(!showExtra)}>
+        {showExtra ? "Nascondi dolore e tecnica" : "Segnala dolore o tecnica"}
+      </Button>
+      {showExtra ? (
+        <>
+          <ScaleControl label="Dolore spalla" value={form.shoulderPain} min={0} max={10} lowLabel="Nessuno" highLabel="Forte" onChange={(shoulderPain) => setForm({ ...form, shoulderPain })} />
+          <ScaleControl label="Sintomi cervicali" value={form.cervicalPain} min={0} max={10} lowLabel="Nessuno" highLabel="Forti" onChange={(cervicalPain) => setForm({ ...form, cervicalPain })} />
+          <label className="field">
+            <span>Qualità tecnica</span>
+            <select value={form.technique} onChange={(e) => setForm({ ...form, technique: e.target.value as SetLog["technique"] })}>
+              <option value="stable">Stabile</option>
+              <option value="uncertain">Incerta</option>
+              <option value="stopped">Interrotta</option>
+            </select>
+          </label>
+        </>
+      ) : null}
+
       {error ? <p className="form-error">{error}</p> : null}
-      <Button onClick={saveSet} disabled={setsComplete}>Conferma serie <Check /></Button>
-      <RestTimer
-        restLeft={restLeft}
-        restTarget={restTarget}
-        onStart={() => setRestLeft(restTarget)}
-        onSkip={() => setRestLeft(null)}
-      />
-      <div className="set-tools">
-        <button type="button" onClick={saveSet} disabled={setsComplete}><RotateCcw /> Ripeti serie</button>
-        <button
-          type="button"
-          onClick={() => {
-            setLogs(logs.slice(0, -1));
-            setError("");
-          }}
-          disabled={!logs.length}
-        >
-          <Undo2 /> Undo
-        </button>
-        <button type="button" onClick={() => setRestLeft(restTarget)}>
-          <TimerReset /> Timer
-        </button>
+
+      {restLeft != null && restLeft > 0 ? (
+        <RestTimer
+          restLeft={restLeft}
+          restTarget={restTarget}
+          onStart={() => setRestLeft(restTarget)}
+          onSkip={() => setRestLeft(null)}
+        />
+      ) : null}
+
+      <div className="workout-sticky-actions">
+        <Button onClick={saveSet} disabled={setsComplete}>Conferma serie <Check /></Button>
+        <div className="set-tools">
+          <button
+            type="button"
+            onClick={() => {
+              const removed = logs[logs.length - 1];
+              const next = logs.slice(0, -1);
+              setLogs(next);
+              if (removed) {
+                const previous = [...next].reverse().find((entry) => entry.prescriptionId === active.id);
+                setForm(formFromPrescription(active, previous));
+              }
+              setError("");
+              setRestLeft(null);
+            }}
+            disabled={!logs.length}
+          >
+            <Undo2 /> Undo
+          </button>
+          <button type="button" onClick={() => setRestLeft(restTarget)}>
+            <TimerReset /> Timer
+          </button>
+        </div>
       </div>
+
       {activeLogs.length ? (
         <div className="logged-sets" aria-live="polite">
           {activeLogs.map((log) => (
@@ -439,7 +506,7 @@ function Workout({
       <div className="exercise-nav">
         <Button variant="secondary" disabled={exerciseIndex === 0} onClick={() => goToExercise(exerciseIndex - 1)}>Precedente</Button>
         {exerciseIndex < template.prescriptions.length - 1 ? (
-          <Button disabled={!activeLogs.length} onClick={() => goToExercise(exerciseIndex + 1)}>Esercizio successivo</Button>
+          <Button disabled={!activeLogs.length} onClick={() => goToExercise(exerciseIndex + 1)}>Successivo</Button>
         ) : (
           <Button disabled={!logs.length} onClick={async () => { await saveDraft(); onStop(); }}>Check-out</Button>
         )}
@@ -514,25 +581,24 @@ function Checkout({
 
   return (
     <div className="flow-screen">
-      <ScreenHeader title="Check-out" caption="Chiudi la seduta: il motore calibra la prossima settimana." onBack={() => undefined} />
+      <ScreenHeader title="Fine seduta" caption="Un attimo per chiudere: poi il piano si aggiorna." onBack={() => undefined} />
       <aside className="session-duration-card" aria-live="polite">
         <p className="date-label">Tempo sulla scheda</p>
         <strong>{preciseDuration}</strong>
-        <span>Da inizio check-in/riscaldamento a ora · ≈ {durationMinutes} min</span>
+        <span>≈ {durationMinutes} min</span>
       </aside>
-      <ScaleControl label="Session RPE" value={rpe} min={1} max={10} lowLabel="Facile" highLabel="Massimo" onChange={setRpe} />
-      <p className="quiet-note">RPE = quanto è stata dura la seduta nella tua percezione (1–10).</p>
+      <ScaleControl label="Quanto è stata dura? (RPE)" value={rpe} min={1} max={10} lowLabel="Facile" highLabel="Massimo" onChange={setRpe} />
       <ScaleControl label="Dolore spalla" value={shoulder} min={0} max={10} lowLabel="Nessuno" highLabel="Forte" onChange={setShoulder} />
       <ScaleControl label="Dolore cervicale" value={cervical} min={0} max={10} lowLabel="Nessuno" highLabel="Forte" onChange={setCervical} />
       <label className="field">
-        <span>Percezione generale</span>
+        <span>Come ti senti</span>
         <select value={feeling} onChange={(e) => setFeeling(e.target.value as WorkoutSession["generalFeeling"])}>
           <option value="better">Meglio</option>
           <option value="same">Uguale</option>
           <option value="worse">Peggio</option>
         </select>
       </label>
-      <Button onClick={complete} disabled={busy}>{busy ? "Calibro il piano…" : "Completa seduta"}</Button>
+      <Button onClick={complete} disabled={busy}>{busy ? "Aggiorno il piano…" : "Completa seduta"}</Button>
     </div>
   );
 }

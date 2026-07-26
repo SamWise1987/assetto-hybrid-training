@@ -1,13 +1,15 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Activity, RotateCcw, TrendingUp } from "lucide-react";
+import { Activity, HeartPulse, RotateCcw, TrendingUp } from "lucide-react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { undoProgressionDecision } from "@/lib/autoregulation";
 import { db, getActiveBlockWeek, getResolvedTemplates, undoRunCalibration } from "@/lib/db";
 import { buildProgressSummary, countRecentWeeksWithData } from "@/lib/progress-analytics";
+import { summarizeHealthVitals } from "@/lib/health-vitals";
 import { Button, EmptyState, Surface } from "../ui";
+import { useTabNavigation } from "@/lib/tab-navigation";
 
 export function ProgressScreen() {
   const decisions = useLiveQuery(() => db.progressionDecisions.orderBy("date").reverse().toArray()) ?? [];
@@ -17,30 +19,66 @@ export function ProgressScreen() {
   const runs = useLiveQuery(() => db.runs.toArray(), [], []);
   const readiness = useLiveQuery(() => db.readiness.toArray(), [], []);
   const matchedExternalWorkouts = useLiveQuery(() => db.externalWorkouts.filter((item) => Boolean(item.matchedTemplateId)).toArray(), [], []);
+  const healthMetrics = useLiveQuery(() => db.healthMetrics.orderBy("recordedAt").reverse().limit(200).toArray(), [], []);
   const plannedSessionsPerWeek = useLiveQuery(async () => (
     await getResolvedTemplates()
   ).filter((item) => item.kind === "strength" || item.kind === "run").length, [], 1);
   const blockWeek = useLiveQuery(() => getActiveBlockWeek(), [], 1);
+  const [showCharts, setShowCharts] = useState(false);
+  const navigateToTab = useTabNavigation();
 
   const summary = useMemo(
     () => buildProgressSummary({ workouts, runs, readiness, blockWeek, plannedSessionsPerWeek, matchedExternalWorkouts }),
     [workouts, runs, readiness, blockWeek, plannedSessionsPerWeek, matchedExternalWorkouts],
   );
   const weeksLogged = countRecentWeeksWithData(workouts, runs);
+  const vitals = useMemo(() => summarizeHealthVitals(healthMetrics), [healthMetrics]);
 
   return (
     <div className="screen-stack">
       <header className="section-heading">
         <p className="date-label">{weeksLogged ? `${weeksLogged} settimane registrate` : "Inizia a registrare"}</p>
         <h1>Progressi</h1>
-        <p>Prestazione, recupero e sintomi letti insieme. Ogni calibrazione è spiegata e annullabile.</p>
+        <p>Due numeri chiari, poi i dettagli se ti servono.</p>
       </header>
 
-      <div className="metric-strip">
-        <div><strong>{summary.adherencePercent}%</strong><span>Aderenza blocco corrente</span></div>
-        <div><strong>{summary.averageRir || "—"}</strong><span>RIR medio ultima settimana</span></div>
-        <div><strong>{summary.latestWeekDistanceKm ? `${summary.latestWeekDistanceKm} km` : "—"}</strong><span>Corsa questa settimana</span></div>
+      <div className="progress-hero">
+        <article>
+          <strong>{summary.adherencePercent}%</strong>
+          <span>Aderenza blocco corrente</span>
+        </article>
+        <article>
+          <strong>{summary.latestWeekDistanceKm ? `${summary.latestWeekDistanceKm}` : "—"}</strong>
+          <span>{summary.latestWeekDistanceKm ? "km corsa questa settimana" : "Ancora nessuna corsa"}</span>
+        </article>
       </div>
+
+      {vitals.length ? (
+        <Surface>
+          <div className="surface-heading">
+            <div><p className="date-label">Apple Salute / Health Connect</p><h2>Segnali recenti</h2></div>
+            <HeartPulse />
+          </div>
+          <p className="quiet-note">Sincronizzati dall’orologio via app iOS/Android e disponibili anche sulla webapp.</p>
+          <div className="health-vitals-grid">
+            {vitals.map((item) => (
+              <article key={item.key}>
+                <span>{item.label}</span>
+                <strong>{item.display}</strong>
+                <small>{item.when}</small>
+              </article>
+            ))}
+          </div>
+        </Surface>
+      ) : (
+        <Surface>
+          <div className="surface-heading">
+            <div><p className="date-label">Apple Salute</p><h2>Nessun segnale ancora</h2></div>
+            <HeartPulse />
+          </div>
+          <p>Collega Apple Salute dall’app iPhone (Impostazioni → integrazioni). FC, respiro, SpO₂, passi e sonno compariranno qui anche sul web.</p>
+        </Surface>
+      )}
 
       {coachReview ? (
         <Surface>
@@ -50,45 +88,53 @@ export function ProgressScreen() {
         </Surface>
       ) : null}
 
-      <ChartSurface title="Volume per pattern" icon={<TrendingUp />} description={summary.volumeByPattern.length ? summary.volumeByPattern.map((item) => `${item.pattern}: ${item.sets} serie`).join("; ") : "Nessun volume registrato."}>
-        <ResponsiveContainer width="100%" height={220}>
-          <BarChart data={summary.volumeByPattern}>
-            <CartesianGrid vertical={false} stroke="#263a47" />
-            <XAxis dataKey="pattern" tick={{ fill: "#9daab1", fontSize: 12 }} axisLine={false} tickLine={false} />
-            <YAxis hide />
-            <Tooltip contentStyle={{ background: "#102330", border: "1px solid #38505e" }} />
-            <Bar dataKey="sets" fill="#91bd7d" radius={[5, 5, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </ChartSurface>
+      <Button variant="secondary" onClick={() => setShowCharts(!showCharts)}>
+        {showCharts ? "Nascondi grafici" : "Mostra grafici"}
+      </Button>
 
-      <ChartSurface title="Corsa facile e qualità" icon={<Activity />} description={summary.runWeekly.length ? `Andamento su ${summary.runWeekly.length} settimane, distinto tra corsa facile e qualità.` : "Nessuna corsa registrata."}>
-        <ResponsiveContainer width="100%" height={220}>
-          <AreaChart data={summary.runWeekly}>
-            <CartesianGrid vertical={false} stroke="#263a47" />
-            <XAxis dataKey="week" tick={{ fill: "#9daab1" }} axisLine={false} />
-            <YAxis hide />
-            <Tooltip contentStyle={{ background: "#102330", border: "1px solid #38505e" }} />
-            <Area type="monotone" dataKey="easy" stackId="1" stroke="#91bd7d" fill="#91bd7d" />
-            <Area type="monotone" dataKey="quality" stackId="1" stroke="#d98235" fill="#d98235" />
-          </AreaChart>
-        </ResponsiveContainer>
-      </ChartSurface>
+      {showCharts ? (
+        <>
+          <ChartSurface title="Volume per pattern" icon={<TrendingUp />} description={summary.volumeByPattern.length ? summary.volumeByPattern.map((item) => `${item.pattern}: ${item.sets} serie`).join("; ") : "Nessun volume registrato."}>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={summary.volumeByPattern}>
+                <CartesianGrid vertical={false} stroke="#263a47" />
+                <XAxis dataKey="pattern" tick={{ fill: "#9daab1", fontSize: 12 }} axisLine={false} tickLine={false} />
+                <YAxis hide />
+                <Tooltip contentStyle={{ background: "#102330", border: "1px solid #38505e" }} />
+                <Bar dataKey="sets" fill="#91bd7d" radius={[5, 5, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartSurface>
 
-      <ChartSurface title="Energia, dolore e RIR" icon={<Activity />} description={summary.recoveryWeekly.length ? `Andamento di energia, RIR e sintomi su ${summary.recoveryWeekly.length} settimane.` : "Nessun dato di recupero registrato."}>
-        <ResponsiveContainer width="100%" height={220}>
-          <LineChart data={summary.recoveryWeekly}>
-            <CartesianGrid vertical={false} stroke="#263a47" />
-            <XAxis dataKey="week" tick={{ fill: "#9daab1" }} axisLine={false} />
-            <YAxis domain={[0, 5]} hide />
-            <Tooltip contentStyle={{ background: "#102330", border: "1px solid #38505e" }} />
-            <Line dataKey="energy" stroke="#91bd7d" strokeWidth={3} />
-            <Line dataKey="rir" stroke="#f4eee3" strokeWidth={2} />
-            <Line dataKey="shoulder" stroke="#d98235" strokeWidth={2} />
-            <Line dataKey="cervical" stroke="#6fb8b7" strokeWidth={2} />
-          </LineChart>
-        </ResponsiveContainer>
-      </ChartSurface>
+          <ChartSurface title="Corsa facile e qualità" icon={<Activity />} description={summary.runWeekly.length ? `Andamento su ${summary.runWeekly.length} settimane.` : "Nessuna corsa registrata."}>
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={summary.runWeekly}>
+                <CartesianGrid vertical={false} stroke="#263a47" />
+                <XAxis dataKey="week" tick={{ fill: "#9daab1" }} axisLine={false} />
+                <YAxis hide />
+                <Tooltip contentStyle={{ background: "#102330", border: "1px solid #38505e" }} />
+                <Area type="monotone" dataKey="easy" stackId="1" stroke="#91bd7d" fill="#91bd7d" />
+                <Area type="monotone" dataKey="quality" stackId="1" stroke="#d98235" fill="#d98235" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </ChartSurface>
+
+          <ChartSurface title="Energia, dolore e RIR" icon={<Activity />} description={summary.recoveryWeekly.length ? `Andamento su ${summary.recoveryWeekly.length} settimane.` : "Nessun dato di recupero."}>
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={summary.recoveryWeekly}>
+                <CartesianGrid vertical={false} stroke="#263a47" />
+                <XAxis dataKey="week" tick={{ fill: "#9daab1" }} axisLine={false} />
+                <YAxis domain={[0, 5]} hide />
+                <Tooltip contentStyle={{ background: "#102330", border: "1px solid #38505e" }} />
+                <Line dataKey="energy" stroke="#91bd7d" strokeWidth={3} />
+                <Line dataKey="rir" stroke="#f4eee3" strokeWidth={2} />
+                <Line dataKey="shoulder" stroke="#d98235" strokeWidth={2} />
+                <Line dataKey="cervical" stroke="#6fb8b7" strokeWidth={2} />
+              </LineChart>
+            </ResponsiveContainer>
+          </ChartSurface>
+        </>
+      ) : null}
 
       <Surface>
         <div className="surface-heading">
@@ -97,10 +143,9 @@ export function ProgressScreen() {
         </div>
         {runCalibrations.length ? (
           <div className="decision-list">
-            {runCalibrations.map((decision) => (
+            {runCalibrations.slice(0, 3).map((decision) => (
               <article key={decision.id} className={decision.undoneAt ? "is-undone" : ""}>
                 <h3>{decision.reason}</h3>
-                <p>Regola: {decision.rule}</p>
                 <p>Sabato: {decision.outputPlan.durationMinutes} min · {decision.outputPlan.type}</p>
                 {decision.undoneAt ? (
                   <small>Annullata</small>
@@ -119,16 +164,15 @@ export function ProgressScreen() {
 
       <Surface>
         <div className="surface-heading">
-          <div><p className="date-label">Registro trasparente</p><h2>Modifiche automatiche forza</h2></div>
+          <div><p className="date-label">Modifiche automatiche</p><h2>Forza</h2></div>
           <RotateCcw />
         </div>
         {decisions.length ? (
           <div className="decision-list">
-            {decisions.map((decision) => (
+            {decisions.slice(0, 5).map((decision) => (
               <article key={decision.id} className={decision.undoneAt ? "is-undone" : ""}>
                 <span className={`decision-action action-${decision.action}`}>{decision.action}</span>
                 <h3>{decision.reason}</h3>
-                <p>Regola: {decision.rule}</p>
                 {decision.undoneAt ? (
                   <small>Annullata</small>
                 ) : (
@@ -146,9 +190,11 @@ export function ProgressScreen() {
             ))}
           </div>
         ) : (
-          <EmptyState title="Nessuna modifica" text="Le decisioni appariranno dopo le prime esposizioni complete." />
+          <EmptyState title="Nessuna modifica" text="Le decisioni appariranno dopo le prime sedute complete." />
         )}
       </Surface>
+
+      <Button variant="ghost" onClick={() => navigateToTab("analysis")}>Vai all’analisi settimanale</Button>
     </div>
   );
 }

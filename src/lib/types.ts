@@ -141,6 +141,30 @@ export interface HealthSyncState {
   errorMessage?: string;
 }
 
+export type HealthMetricType =
+  | "restingHeartRate"
+  | "heartRateVariability"
+  | "respiratoryRate"
+  | "oxygenSaturation"
+  | "steps"
+  | "sleepMinutes";
+
+export interface HealthMetricSample {
+  id: Id;
+  type: HealthMetricType;
+  value: number;
+  unit: string;
+  recordedAt: string;
+  endAt?: string;
+  source: "apple_health" | "health_connect";
+  platform: PlatformSource;
+  externalId: string;
+  platformId?: string;
+  sourceName?: string;
+  importedAt: string;
+  syncedAt?: string;
+}
+
 export interface RunningWorkoutSegment {
   id: Id;
   phase: "warmup" | "work" | "recovery" | "cooldown";

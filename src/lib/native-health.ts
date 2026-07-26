@@ -1,5 +1,5 @@
 import { Capacitor } from "@capacitor/core";
-import type { ExternalWorkout, RunSession, RunSessionSource } from "./types";
+import type { ExternalWorkout, HealthMetricSample, HealthMetricType, RunSession, RunSessionSource } from "./types";
 import { stableRecordId } from "./stable-id";
 
 export type NativeHealthPlatform = "ios" | "android" | "web";
@@ -18,6 +18,7 @@ export interface NativeWorkoutImportResult {
   externalWorkouts: ExternalWorkout[];
   importedRuns: number;
   importedStrength: number;
+  importedMetrics: number;
 }
 
 const RUN_TYPES = new Set([
@@ -112,10 +113,77 @@ export async function requestNativeHealthAccess() {
 }
 
 export function nativeHealthReadTypes(platform: NativeHealthPlatform) {
-  const shared = ["workouts", "distance", "heartRate", "calories"] as const;
+  const shared = [
+    "workouts",
+    "distance",
+    "heartRate",
+    "calories",
+    "steps",
+    "sleep",
+    "respiratoryRate",
+    "oxygenSaturation",
+    "restingHeartRate",
+    "heartRateVariability",
+  ] as const;
   // Health Connect non espone exerciseTime nel plugin: includerlo rifiuta
   // l'intera richiesta Android come tipo non supportato.
   return platform === "ios" ? [...shared, "exerciseTime" as const] : [...shared];
+}
+
+const VITAL_SAMPLE_TYPES = [
+  "restingHeartRate",
+  "heartRateVariability",
+  "respiratoryRate",
+  "oxygenSaturation",
+  "steps",
+  "sleep",
+] as const;
+
+function mapVitalType(dataType: (typeof VITAL_SAMPLE_TYPES)[number]): HealthMetricType {
+  if (dataType === "sleep") return "sleepMinutes";
+  return dataType;
+}
+
+export function nativeSampleToHealthMetric(
+  sample: {
+    dataType: string;
+    value: number;
+    unit: string;
+    startDate: string;
+    endDate?: string;
+    platformId?: string;
+    sourceName?: string;
+    sleepState?: string;
+  },
+  platform: NativeHealthPlatform,
+): HealthMetricSample | null {
+  if (platform === "web") return null;
+  if (!(VITAL_SAMPLE_TYPES as readonly string[]).includes(sample.dataType)) return null;
+  if (sample.dataType === "sleep" && sample.sleepState && !["asleep", "rem", "deep", "light"].includes(sample.sleepState)) {
+    return null;
+  }
+
+  const type = mapVitalType(sample.dataType as (typeof VITAL_SAMPLE_TYPES)[number]);
+  const value = type === "sleepMinutes"
+    ? Math.max(1, Math.round(((new Date(sample.endDate ?? sample.startDate).getTime() - new Date(sample.startDate).getTime()) / 60000) || sample.value))
+    : sample.value;
+  if (!Number.isFinite(value) || value <= 0) return null;
+
+  const externalId = sample.platformId ?? `${sample.dataType}-${sample.startDate}`;
+  return {
+    id: stableRecordId(platform === "ios" ? "apple_health" : "health_connect", `metric-${externalId}`),
+    type,
+    value,
+    unit: type === "sleepMinutes" ? "minute" : sample.unit,
+    recordedAt: sample.startDate,
+    endAt: sample.endDate,
+    source: platform === "ios" ? "apple_health" : "health_connect",
+    platform,
+    externalId,
+    platformId: sample.platformId,
+    sourceName: sample.sourceName,
+    importedAt: new Date().toISOString(),
+  };
 }
 
 // Apple Watch può consegnare all'iPhone un workout diverse ore dopo la fine.
@@ -270,6 +338,21 @@ export async function importNativeWorkouts(afterDays = 30, lastSuccessfulSyncAt?
     ascending: true,
   }).then((result) => result.samples).catch(() => []);
 
+  const vitalSamples: HealthMetricSample[] = [];
+  for (const dataType of VITAL_SAMPLE_TYPES) {
+    const page = await Health.readSamples({
+      dataType,
+      startDate,
+      endDate,
+      limit: dataType === "steps" || dataType === "sleep" ? 500 : 120,
+      ascending: false,
+    }).then((result) => result.samples).catch(() => []);
+    for (const sample of page) {
+      const metric = nativeSampleToHealthMetric(sample, availability.platform);
+      if (metric) vitalSamples.push(metric);
+    }
+  }
+
   for (const workout of workoutRecords) {
     const workoutStart = new Date(workout.startDate).getTime();
     const workoutEnd = new Date(workout.endDate).getTime();
@@ -297,6 +380,7 @@ export async function importNativeWorkouts(afterDays = 30, lastSuccessfulSyncAt?
   let skipped = 0;
   let importedStrength = 0;
   let importedRuns = 0;
+  let importedMetrics = 0;
   const canonicalExternal: ExternalWorkout[] = [];
   for (const external of externalWorkouts) {
     const result = await importExternalWorkout(external);
@@ -312,6 +396,17 @@ export async function importNativeWorkouts(afterDays = 30, lastSuccessfulSyncAt?
     const result = await importExternalRun(run);
     if (result.imported) importedRuns += 1;
   }
+  if (vitalSamples.length) {
+    const existingIds = new Set((await db.healthMetrics.bulkGet(vitalSamples.map((sample) => sample.id))).filter(Boolean).map((sample) => sample!.id));
+    const fresh = vitalSamples.filter((sample) => !existingIds.has(sample.id));
+    if (fresh.length) await db.healthMetrics.bulkPut(fresh);
+    importedMetrics = fresh.length;
+    const { pushHealthMetrics } = await import("./remote-sync");
+    await pushHealthMetrics(vitalSamples).then(async () => {
+      const syncedAt = new Date().toISOString();
+      await db.healthMetrics.bulkPut(vitalSamples.map((sample) => ({ ...sample, syncedAt })));
+    }).catch(() => undefined);
+  }
 
   const now = new Date().toISOString();
   await db.healthSyncStates.put({
@@ -320,7 +415,7 @@ export async function importNativeWorkouts(afterDays = 30, lastSuccessfulSyncAt?
     status: "success",
     lastAttemptAt: now,
     lastSuccessfulSyncAt: now,
-    lastImportedCount: imported,
+    lastImportedCount: imported + importedMetrics,
     lastSkippedCount: skipped,
   });
 
@@ -344,7 +439,7 @@ export async function importNativeWorkouts(afterDays = 30, lastSuccessfulSyncAt?
   const { flushSyncQueue } = await import("./normalized-sync");
   await flushSyncQueue().catch(() => undefined);
 
-  return { imported, skipped, workouts, externalWorkouts: canonicalExternal, importedRuns, importedStrength };
+  return { imported, skipped, workouts, externalWorkouts: canonicalExternal, importedRuns, importedStrength, importedMetrics };
 }
 
 export async function recordNativeHealthFailure(error: unknown) {

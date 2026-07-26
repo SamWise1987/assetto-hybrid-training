@@ -210,6 +210,21 @@ export type Database = {
         Update: LooseUpdate;
         Relationships: [];
       };
+      health_metric_samples: {
+        Row: {
+          id: string; user_id: string; metric_type: string; value: number; unit: string;
+          recorded_at: string; end_at: string | null; source: string; platform: string;
+          external_id: string; platform_id: string | null; source_name: string | null;
+          imported_at: string; updated_at: string;
+        };
+        Insert: {
+          id: string; user_id: string; metric_type: string; value: number; unit: string;
+          recorded_at: string; end_at?: string | null; source: string; platform: string;
+          external_id: string; platform_id?: string | null; source_name?: string | null; imported_at?: string;
+        };
+        Update: LooseUpdate;
+        Relationships: [];
+      };
       training_session_logs: {
         Row: { id: string; user_id: string; template_id: string; session_date: string; status: string; source: string; payload: Json; updated_at: string };
         Insert: { id: string; user_id: string; template_id: string; session_date: string; status: string; source?: string; payload: Json };

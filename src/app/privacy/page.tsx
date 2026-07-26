@@ -3,10 +3,11 @@ export default function PrivacyPage() {
     <main style={{ maxWidth: 640, margin: "2rem auto", padding: "0 1rem", lineHeight: 1.55, fontFamily: "system-ui, sans-serif" }}>
       <h1>Informativa privacy — dati salute</h1>
       <p>
-        RobertaFunctional legge allenamenti di corsa, camminata e forza da Apple Health / Health Connect
-        solo dopo consenso esplicito. Le attività importate vengono salvate nel tuo account Supabase
-        per renderle disponibili anche sul web e sugli altri dispositivi. Non vendiamo dati salute e
-        non ricostruiamo serie o ripetizioni che la fonte non fornisce.
+        RobertaFunctional legge da Apple Health / Health Connect, dopo consenso esplicito,
+        allenamenti (corsa, camminata, forza) e segnali salute utili al piano: frequenza cardiaca,
+        FC a riposo, HRV, frequenza respiratoria, saturazione, passi e sonno. I dati importati
+        vengono salvati nel tuo account Supabase per renderli disponibili anche sul web e sugli altri dispositivi.
+        Non vendiamo dati salute e non ricostruiamo serie o ripetizioni che la fonte non fornisce.
       </p>
       <h2>Fonti</h2>
       <ul>

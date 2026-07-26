@@ -82,7 +82,7 @@ Dopo il login Supabase è la fonte condivisa e IndexedDB `assetto-local-v1` è c
 
 ## Backend e Supabase
 
-Il backend Next.js espone, oltre agli endpoint legacy di snapshot, API normalizzate per onboarding, piani, clienti, attività esterne, suggerimenti, notifiche e coda offline:
+Il backend Next.js espone, oltre agli endpoint legacy di snapshot, API normalizzate per onboarding, piani, clienti, attività esterne, **metriche salute**, suggerimenti, notifiche e coda offline:
 
 | Endpoint | Metodo | Descrizione |
 |----------|--------|-------------|
@@ -92,6 +92,7 @@ Il backend Next.js espone, oltre agli endpoint legacy di snapshot, API normalizz
 | `/api/sync/pull` | GET | Scarica ultimo snapshot cloud |
 | `/api/sync/normalized` | GET/POST | Sincronizza log append-only e readiness |
 | `/api/external-workouts` | GET/POST/PATCH | Health/GPX cloud e matching manuale |
+| `/api/health-metrics` | GET/POST | Segnali Apple Salute / Health Connect (FC, respiro, SpO₂, passi, sonno) |
 | `/api/staff/clients` | GET/POST/PATCH | Clienti, inviti e assegnazioni trainer |
 | `/api/staff/clients/:id` | GET | Dettaglio atleta assegnato, calendario e aderenza |
 | `/api/analysis/suggestions` | GET/POST/PATCH | Suggerimenti versionati e approvazioni |

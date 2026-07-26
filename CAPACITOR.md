@@ -177,9 +177,23 @@ Se Xcode chiede di riattivare la capability, aggiungila da **Signing & Capabilit
 ## Android (dettaglio già preparato nel repo)
 
 - permesso history Health Connect nel manifest
-- manifest Health Connect limitato in fase di merge a workout, distanza, calorie e frequenza cardiaca in sola lettura
+- manifest Health Connect: workout, distanza, calorie, FC in allenamento + segnali
+  (passi, sonno, respiro, SpO₂, FC a riposo, HRV) in sola lettura
 - URL privacy in `strings.xml` → pagina `/privacy` del sito
 - fallback privacy anche in `www/privacypolicy.html`
+
+## Checklist iOS (dopo UX web stabile)
+
+Eseguire **su Mac** con Xcode e account Apple Developer:
+
+1. Imposta `CAPACITOR_SERVER_URL` sull’URL Vercel di produzione e lancialo in build.
+2. `npm run cap:sync` poi `npx cap open ios`.
+3. Signing & Capabilities: team, bundle id `com.robertafunctional.app`, HealthKit, Push.
+4. Verifica `NSHealthShareUsageDescription` (allenamenti + segnali cardio/respiratori).
+5. Device fisico: autorizza Salute → sync automatico in foreground (`NativeHealthSync`).
+6. Controlla in Progressi i segnali (FC a riposo, SpO₂, respiro, passi, sonno).
+7. Auth deep link `com.robertafunctional.app` da invite/recovery.
+8. TestFlight → App Store. APNs solo con certificati push configurati.
 
 ## Comandi utili
 
@@ -197,8 +211,9 @@ npx cap run android       # rebuild + install
   Garmin Connect → Apple Health / Health Connect.
 - Il backend Next.js (login, piani, sync e inbox) resta su Vercel: web e shell Capacitor usano gli stessi endpoint.
 - La build firmata App Store / Play Store va fatta da un Mac/CI con certificati — non da questo ambiente cloud Linux (iOS).
+- I segnali salute (FC a riposo, respiro, SpO₂…) restano sul dispositivo / cache IndexedDB; non sostituiscono il diario di allenamento né inventano serie.
 
 ## Test senza device
 
 - Browser: import **GPX**
-- Unit test: `src/lib/native-health.test.ts` mappa workout → `RunSession`
+- Unit test: `src/lib/native-health.test.ts` mappa workout → `RunSession` e metriche vitali

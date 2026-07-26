@@ -254,12 +254,18 @@ export function CoachScreen() {
       <header className="section-heading">
         <p className="date-label">{account?.role === "admin" ? "Amministratore" : "Trainer"}{account?.email ? ` · ${account.email}` : ""}</p>
         <h1>Studio piani</h1>
-        <p>Crea schede personalizzate e assegnale ai tuoi clienti.</p>
+        <p>Tre passi: modifica, salva, assegna.</p>
       </header>
+
+      <div className="coach-steps" aria-hidden="true">
+        <span><strong>1. Modifica</strong>Nomi e esercizi della settimana</span>
+        <span><strong>2. Salva</strong>Pubblica il piano sul cloud</span>
+        <span><strong>3. Assegna</strong>Invia al cliente via email</span>
+      </div>
 
       <Surface>
         <div className="surface-heading">
-          <div><p className="date-label">Piano attivo</p><h2>Nome e sessioni</h2></div>
+          <div><p className="date-label">Passo 1–2</p><h2>Nome e sessioni</h2></div>
           <ClipboardList />
         </div>
         <Field label="Nome piano" value={planName} onChange={(e) => setPlanName(e.target.value)} />
@@ -447,7 +453,7 @@ export function CoachScreen() {
 
       <Surface>
         <div className="surface-heading">
-          <div><p className="date-label">Assegnazione</p><h2>Invia piano al cliente</h2></div>
+          <div><p className="date-label">Passo 3</p><h2>Invia piano al cliente</h2></div>
           <UserRoundCog />
         </div>
         <Field label="Email cliente" type="email" value={assignEmail} onChange={(e) => setAssignEmail(e.target.value)} />

@@ -23,6 +23,7 @@ import type {
   RunSession,
   RunningWorkoutTemplate,
   HealthSyncState,
+  HealthMetricSample,
   SyncQueueItem,
   TemplateCustomization,
   TrainingBlock,
@@ -78,6 +79,7 @@ export class AssettoDatabase extends Dexie {
   athleteProfiles!: EntityTable<AthleteProfile, "id">;
   externalWorkouts!: EntityTable<ExternalWorkout, "id">;
   healthSyncStates!: EntityTable<HealthSyncState, "id">;
+  healthMetrics!: EntityTable<HealthMetricSample, "id">;
   runningWorkoutTemplates!: EntityTable<RunningWorkoutTemplate, "id">;
   analysisSuggestions!: EntityTable<AnalysisSuggestion, "id">;
   notifications!: EntityTable<AppNotification, "id">;
@@ -171,6 +173,9 @@ export class AssettoDatabase extends Dexie {
       notifications: "id, recipientUserId, createdAt, readAt",
       syncQueue: "id, entity, entityId, createdAt, attemptCount",
     });
+    this.version(5).stores({
+      healthMetrics: "id, type, recordedAt, source, platform",
+    });
   }
 }
 
@@ -197,6 +202,7 @@ const accountScopedTables = () => [
   db.athleteProfiles,
   db.externalWorkouts,
   db.healthSyncStates,
+  db.healthMetrics,
   db.analysisSuggestions,
   db.notifications,
   db.syncQueue,
