@@ -79,7 +79,9 @@ export function AssettoApp() {
   }, [navigateToTab]);
 
   useEffect(() => {
-    getRemoteSession().then((session) => setAuthState(session ? "authenticated" : "anonymous"));
+    getRemoteSession()
+      .then((session) => setAuthState(session ? "authenticated" : "anonymous"))
+      .catch(() => setAuthState("anonymous"));
     return onRemoteAuthChange((authenticated) => setAuthState(authenticated ? "authenticated" : "anonymous"));
   }, []);
 
@@ -178,11 +180,14 @@ export function AssettoApp() {
     return () => remove?.();
   }, [openInternalHref]);
 
-  if (authState === "loading" || (authState === "authenticated" && !bootstrapDone) || profile === null || athleteProfile === null) {
+  if (authState === "loading") {
     return <div className="loading-screen" role="status">Caricamento account…</div>;
   }
   if (authState === "anonymous") return <AuthGate onAuthenticated={() => setAuthState("authenticated")} />;
   if (passwordSetup) return <AuthGate passwordSetup onAuthenticated={() => { setPasswordSetup(false); setAuthState("authenticated"); }} />;
+  if (!bootstrapDone || profile === null || athleteProfile === null) {
+    return <div className="loading-screen" role="status">Caricamento account…</div>;
+  }
   if (!account) return <div className="loading-screen" role="status">Preparazione profilo…</div>;
   if (!profile && !isStaff) return <Onboarding />;
   if (!isStaff && athleteProfile?.onboardingCompletedAt && !athleteProfile.consentAcceptedAt) return <ConsentConfirmation />;
