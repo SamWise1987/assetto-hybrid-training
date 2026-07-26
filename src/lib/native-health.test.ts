@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { nativeHealthReadTypes, nativeHealthSyncStartDate, nativeWorkoutToExternalWorkout, nativeWorkoutToRunSession } from "./native-health";
+import { nativeHealthReadTypes, nativeHealthSyncStartDate, nativeSampleToHealthMetric, nativeWorkoutToExternalWorkout, nativeWorkoutToRunSession } from "./native-health";
 
 describe("nativeWorkoutToRunSession", () => {
   it("richiede solo tipi supportati dalla piattaforma", () => {
     expect(nativeHealthReadTypes("ios")).toContain("exerciseTime");
+    expect(nativeHealthReadTypes("ios")).toContain("restingHeartRate");
+    expect(nativeHealthReadTypes("ios")).toContain("respiratoryRate");
     expect(nativeHealthReadTypes("android")).not.toContain("exerciseTime");
+    expect(nativeHealthReadTypes("android")).toContain("oxygenSaturation");
   });
 
   it("usa 30 giorni al primo import e poi riparte dall'ultimo sync con overlap", () => {
@@ -89,5 +92,37 @@ describe("nativeWorkoutToRunSession", () => {
       "android",
     );
     expect(bike).toBeNull();
+  });
+
+  it("maps resting heart rate and respiratory samples from Apple Health", () => {
+    const resting = nativeSampleToHealthMetric(
+      {
+        dataType: "restingHeartRate",
+        value: 54,
+        unit: "bpm",
+        startDate: "2026-07-20T06:00:00.000Z",
+        platformId: "hk-rhr-1",
+        sourceName: "Apple Watch",
+      },
+      "ios",
+    );
+    expect(resting).toMatchObject({
+      type: "restingHeartRate",
+      value: 54,
+      source: "apple_health",
+      platform: "ios",
+    });
+
+    const respiratory = nativeSampleToHealthMetric(
+      {
+        dataType: "respiratoryRate",
+        value: 14,
+        unit: "count/min",
+        startDate: "2026-07-20T06:10:00.000Z",
+        platformId: "hk-rr-1",
+      },
+      "ios",
+    );
+    expect(respiratory?.type).toBe("respiratoryRate");
   });
 });

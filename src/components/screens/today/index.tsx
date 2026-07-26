@@ -2,11 +2,11 @@
 
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { ArrowRight, Clock3, Footprints, Lightbulb, Sparkles } from "lucide-react";
+import { ArrowRight, Clock3, Footprints, Lightbulb } from "lucide-react";
 import { adjustForReadiness } from "@/lib/autoregulation";
 import { db, getActiveBlockWeek, getResolvedTemplates, getTodayRunPlan } from "@/lib/db";
 import { getExerciseById } from "@/lib/exercise-library";
-import { EXERCISES, getCycleTargets, TEMPLATES } from "@/lib/program";
+import { EXERCISES, TEMPLATES } from "@/lib/program";
 import { getTemplateForDayWithOverrides } from "@/lib/training-engine";
 import type { DailyReadiness, ExercisePrescription, WorkoutTemplate } from "@/lib/types";
 import { canManagePlans } from "@/lib/roles";
@@ -57,7 +57,7 @@ function SchedaPanel({
         <button type="button" onClick={onBack} aria-label="Indietro">←</button>
         <div>
           <h1>Scheda · {template.name}</h1>
-          <p>Esercizi, carichi, pause e hint del piano.</p>
+          <p>Anteprima rapida. I carichi si registrano durante la seduta.</p>
         </div>
       </header>
       <ol className="scheda-list">
@@ -69,34 +69,17 @@ function SchedaPanel({
                 <span>{index + 1}</span>
                 <div>
                   <strong>{exercise?.name ?? prescription.exerciseId}</strong>
-                  <p>{exercise?.pattern}</p>
+                  <p>{formatVolume(prescription)}{exercise?.unilateral ? " / lato" : ""} · RIR {prescription.targetRir.join("–")}</p>
                 </div>
               </div>
-              <dl className="scheda-meta">
-                <div><dt>Volume</dt><dd>{formatVolume(prescription)}{exercise?.unilateral ? " / lato" : ""}</dd></div>
-                <div><dt>RIR</dt><dd>{prescription.targetRir.join("–")}</dd></div>
-                <div><dt>Carico</dt><dd>{prescription.targetLoadKg != null ? `${prescription.targetLoadKg} kg / manubrio` : prescription.variant !== "standard" ? prescription.variant : "da registrare"}</dd></div>
-                <div><dt>Pausa</dt><dd>{prescription.restSeconds ?? 90} s</dd></div>
-                <div><dt>Tempo</dt><dd>{prescription.tempo}</dd></div>
-                <div><dt>ROM</dt><dd>{prescription.rangeOfMotion}</dd></div>
-              </dl>
               {prescription.hint ? (
                 <p className="scheda-hint"><Lightbulb size={16} aria-hidden="true" /> {prescription.hint}</p>
-              ) : null}
-              {exercise?.safetyNotes?.length ? (
-                <p className="scheda-safety">{exercise.safetyNotes.join(" · ")}</p>
               ) : null}
             </li>
           );
         })}
       </ol>
-      {template.notes?.length ? (
-        <Surface>
-          <p className="date-label">Note scheda</p>
-          {template.notes.map((note) => <p key={note}>{note}</p>)}
-        </Surface>
-      ) : null}
-      <Button onClick={onStart}>Inizia check-in <ArrowRight /></Button>
+      <Button onClick={onStart}>Inizia allenamento <ArrowRight /></Button>
     </div>
   );
 }
@@ -120,7 +103,6 @@ export function TodayScreen() {
     [activePrescriptions, resolvedTemplates],
   );
   const adjustment = adjustForReadiness(readiness);
-  const targets = getCycleTargets(blockWeek);
   const navigateToTab = useTabNavigation();
   const displayName = getDisplayName(account, profile);
   const welcome = getWelcomeGreeting(displayName, profile?.preferredGreeting ?? "neutral");
@@ -169,6 +151,7 @@ export function TodayScreen() {
           setSessionStartedAt(null);
           setMode("overview");
         }}
+        onProgress={() => navigateToTab("progress")}
       />
     );
   }
@@ -178,78 +161,69 @@ export function TodayScreen() {
   const firstExercise = getExerciseById(firstPrescription?.exerciseId ?? "") ?? EXERCISES.find((exercise) => exercise.id === firstPrescription?.exerciseId);
   const isStrength = template.kind === "strength";
   const isRun = template.kind === "run";
+  const durationMinutes = runPlan?.durationMinutes ?? template.estimatedMinutes;
+  const insight = latestRunCalibration?.reason ?? latestDecision?.reason;
 
   return (
-    <div className="today-screen">
+    <div className="today-screen today-screen-minimal">
       {isClient ? (
         <p className="welcome-banner" role="status">{welcome}</p>
       ) : null}
 
-      <section className="today-hero">
-        <p className="date-label">{dateLabel}</p>
+      <section className="today-hero today-hero-compact">
+        <p className="date-label">{dateLabel} · settimana {blockWeek}/8</p>
         <h1>{template.name}</h1>
         <span className="hero-rule" />
-        {template.estimatedMinutes ? (
-          <p className="duration"><Clock3 aria-hidden="true" /> {runPlan?.durationMinutes ?? template.estimatedMinutes} min</p>
+        {durationMinutes ? (
+          <p className="duration"><Clock3 aria-hidden="true" /> {durationMinutes} min</p>
         ) : null}
       </section>
 
       {template.kind === "free" ? (
-        <Surface className="free-day"><h2>Domenica libera</h2><p>Nessuna seduta, recupero o notifica da completare.</p></Surface>
-      ) : null}
-
-      <button className="change-rail" type="button" onClick={() => navigateToTab("progress")}>
-        <span><Sparkles /></span>
-        <strong>{latestRunCalibration?.reason ?? latestDecision?.reason ?? "Piano iniziale: volume prudente e regole visibili."}</strong>
-        <ArrowRight />
-      </button>
-
-      {isRun && runPlan ? (
-        <Surface className="run-plan-preview">
-          <p className="date-label">Piano corsa {runPlan.status === "calibrated" ? "calibrato" : "previsto"}</p>
-          <h2>{runPlan.durationMinutes} min · {runPlan.type === "controlled-quality" ? "qualità controllata" : "facile"}</h2>
-          {runPlan.notes?.map((note) => <p key={note}>{note}</p>)}
+        <Surface className="session-card">
+          <h2>Domenica libera</h2>
+          <p>Nessuna seduta obbligatoria. Riposo o passeggiata leggera.</p>
         </Surface>
       ) : null}
 
-      <section className="readiness-preview">
-        <h2>Come stai oggi?</h2>
-        <div>
-          <button type="button" onClick={() => setMode("checkin")}><span>Energia</span><strong>{readiness.energy}</strong></button>
-          <button type="button" onClick={() => setMode("checkin")}><span>Sonno</span><strong>{readiness.sleep}</strong></button>
-          <button type="button" onClick={() => setMode("checkin")}><span>Gambe</span><strong>{readiness.legSoreness}</strong></button>
-        </div>
-        <p>Valuta prima di applicare qualsiasi adattamento.</p>
-      </section>
-
-      {firstExercise ? (
-        <section className="next-exercise">
-          <p>Primo esercizio</p>
-          <h2>{firstExercise.name}</h2>
-          <span>
-            {targets.setCap ?? firstPrescription.sets} × {firstPrescription.repRange?.join("–")}{" "}
-            {firstExercise.unilateral ? "per lato" : ""} · RIR {targets.targetRir.join("–")}
-            {firstPrescription.restSeconds ? ` · pausa ${firstPrescription.restSeconds}s` : ""}
-          </span>
-        </section>
+      {template.kind === "recovery" ? (
+        <Surface className="session-card">
+          <h2>Recupero</h2>
+          <p className="recovery-copy">Riposo, passeggiata libera o mobilità non provocativa. Nessun obbligo.</p>
+        </Surface>
       ) : null}
 
-      <div className="primary-actions">
-        {isStrength ? <Button onClick={() => setMode("checkin")}>Inizia check-in <ArrowRight /></Button> : null}
-        {isStrength ? <Button variant="secondary" onClick={() => setMode("scheda")}>Vedi scheda completa <ArrowRight /></Button> : null}
-        {isRun ? <Button onClick={() => setMode("run")}><Footprints /> Registra la corsa <ArrowRight /></Button> : null}
-        {template.kind === "recovery" ? (
-          <p className="recovery-copy">Riposo, passeggiata libera o mobilità non provocativa. Nessun obbligo e nessuna penalità.</p>
-        ) : null}
-        {template.kind !== "free" ? (
-          <Button variant="secondary" onClick={() => navigateToTab("calendar")}>Vedi calendario <ArrowRight /></Button>
-        ) : null}
-      </div>
+      {isStrength || isRun ? (
+        <Surface className="session-card">
+          <p className="date-label">{isStrength ? "Allenamento di forza" : "Corsa di oggi"}</p>
+          <h2>{isRun && runPlan ? `${runPlan.durationMinutes} min · ${runPlan.type === "controlled-quality" ? "qualità" : "facile"}` : template.name}</h2>
+          {isStrength && firstExercise ? (
+            <p>Inizia con <strong>{firstExercise.name}</strong>
+              {firstPrescription?.repRange ? ` · ${firstPrescription.sets} × ${firstPrescription.repRange.join("–")}` : null}
+            </p>
+          ) : null}
+          {isRun && runPlan?.notes?.length ? <p>{runPlan.notes[0]}</p> : null}
+          {insight ? <p className="session-card-insight">{insight}</p> : null}
+          <div className="session-card-actions">
+            {isStrength ? (
+              <Button onClick={() => setMode("checkin")}>Inizia <ArrowRight /></Button>
+            ) : null}
+            {isRun ? (
+              <Button onClick={() => setMode("run")}><Footprints /> Registra corsa <ArrowRight /></Button>
+            ) : null}
+            {isStrength ? (
+              <Button variant="ghost" onClick={() => setMode("scheda")}>Vedi scheda</Button>
+            ) : null}
+          </div>
+        </Surface>
+      ) : null}
 
-      <button className="next-day-prompt" type="button" onClick={() => setMode("next-day")}>
-        <span><strong>Risposta nelle 24 ore</strong><small>Necessaria prima di progredire nell’upper body.</small></span>
-        <ArrowRight />
-      </button>
+      {isStrength ? (
+        <button className="next-day-prompt next-day-prompt-soft" type="button" onClick={() => setMode("next-day")}>
+          <span><strong>Risposta 24 ore</strong><small>Serve per le progressioni upper body.</small></span>
+          <ArrowRight />
+        </button>
+      ) : null}
     </div>
   );
 }

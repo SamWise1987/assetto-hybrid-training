@@ -53,9 +53,9 @@ export function IntegrationsPanel({ onStatus }: { onStatus: (message: string) =>
     try {
       const result = await importNativeWorkouts(30);
       report(
-        result.imported
-          ? `${result.imported} attività importate da ${health?.platform === "ios" ? "Apple Health" : "Health Connect"}: ${result.importedRuns} corsa/camminata e ${result.importedStrength} forza${result.skipped ? ` (${result.skipped} già presenti)` : ""}.`
-          : "Nessuna nuova attività di corsa, camminata o forza da importare.",
+        result.imported || result.importedMetrics
+          ? `${result.imported} attività e ${result.importedMetrics} segnali salute da ${health?.platform === "ios" ? "Apple Health" : "Health Connect"}: ${result.importedRuns} corsa/camminata, ${result.importedStrength} forza${result.skipped ? ` (${result.skipped} già presenti)` : ""}.`
+          : "Nessuna nuova attività o segnale salute da importare.",
       );
     } catch (error) {
       await recordNativeHealthFailure(error);
@@ -149,13 +149,14 @@ export function IntegrationsPanel({ onStatus }: { onStatus: (message: string) =>
       </div>
       <p>
         Percorso principale: app nativa Capacitor che legge Apple Health (iPhone/Apple Watch)
-        e Health Connect (Android / Garmin / Huawei quando sincronizzati). Niente subscription Strava.
+        e Health Connect (Android / Garmin / Huawei quando sincronizzati). Oltre agli allenamenti
+        sincronizza FC a riposo, HRV, respiro, SpO₂, passi e sonno.
       </p>
 
       <div className="integration-card">
         <strong>Apple Health / Health Connect</strong>
         <p>
-          Importa allenamenti di corsa, camminata e forza dagli ultimi 30 giorni. Funziona con Apple Watch,
+          Importa allenamenti e segnali salute dagli ultimi 30 giorni. Funziona con Apple Watch,
           e con Garmin / Huawei se l&apos;utente abilita la sincronizzazione verso Apple Salute o Health Connect.
         </p>
         {nativeReady ? (

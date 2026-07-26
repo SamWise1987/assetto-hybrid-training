@@ -128,9 +128,9 @@ export function Onboarding() {
 
       {step === 2 ? (
         <>
-          <section className="onboarding-hero"><p className="date-label">Dati allenamento</p><h1>Collega Health.</h1><p>L’app legge gli allenamenti registrati dal telefono o dall’orologio. Non inventa serie o ripetizioni mancanti.</p></section>
+          <section className="onboarding-hero"><p className="date-label">Dati allenamento</p><h1>Collega Health.</h1><p>L’app legge allenamenti, frequenza cardiaca, respiro, SpO₂, passi e sonno da Apple Watch o Health Connect. Non inventa serie o ripetizioni mancanti.</p></section>
           <div className="onboarding-list integration-onboarding">
-            <article><HeartPulse /><div><h2>Apple Health / Health Connect</h2><p>Corsa, camminata e riepiloghi degli allenamenti di forza.</p></div>{healthStatus === "connected" ? <Check /> : <Smartphone />}</article>
+            <article><HeartPulse /><div><h2>Apple Health / Health Connect</h2><p>Corsa, camminata, forza e segnali cardio/respiratori dal tuo orologio.</p></div>{healthStatus === "connected" ? <Check /> : <Smartphone />}</article>
             <article><Shield /><div><h2>Permessi sotto il tuo controllo</h2><p>Puoi modificare o revocare l’accesso dalle impostazioni del telefono.</p></div><Check /></article>
           </div>
           <div className="onboarding-profile">

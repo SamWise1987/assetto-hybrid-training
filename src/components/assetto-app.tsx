@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { BarChart3, Bell, CalendarDays, ClipboardList, Dumbbell, Home, Settings, Sparkles, UserRound, Users } from "lucide-react";
+import { BarChart3, Bell, CalendarDays, ClipboardList, Dumbbell, Home, Menu, Settings, Sparkles, UserRound, Users } from "lucide-react";
 import { db } from "@/lib/db";
 import { canManagePlans } from "@/lib/roles";
 import { consumeRemoteAuthCallback, getRemoteAccessToken, getRemoteAuthCallbackParams, getRemoteSession, migrateLocalDataForAccount, onRemoteAuthChange, syncAccountProfile } from "@/lib/remote-sync";
@@ -20,6 +20,7 @@ import { SettingsScreen } from "./screens/settings";
 import { AnalysisScreen } from "./screens/analysis";
 import { ClientsScreen } from "./screens/clients";
 import { InboxScreen } from "./screens/inbox";
+import { MoreScreen } from "./screens/more";
 import { NativeHealthSync } from "./native-health-sync";
 import { AwaitingPlanScreen } from "./screens/awaiting-plan";
 import { SyncManager } from "./sync-manager";
@@ -37,9 +38,7 @@ const athleteTabs: { id: AppTab; label: string; icon: typeof Home }[] = [
   { id: "today", label: "Oggi", icon: Home },
   { id: "calendar", label: "Calendario", icon: CalendarDays },
   { id: "progress", label: "Progressi", icon: BarChart3 },
-  { id: "analysis", label: "Analisi", icon: Sparkles },
-  { id: "inbox", label: "Avvisi", icon: Bell },
-  { id: "settings", label: "Impostazioni", icon: Settings },
+  { id: "more", label: "Altro", icon: Menu },
 ];
 
 const staffTabs: { id: AppTab; label: string; icon: typeof Home }[] = [
@@ -102,7 +101,7 @@ export function AssettoApp() {
     const params = new URLSearchParams(window.location.search);
     const integration = params.get("integrations");
     const requestedTab = params.get("tab") as AppTab | null;
-    if (requestedTab && ["today", "calendar", "progress", "analysis", "exercises", "clients", "coach", "inbox", "settings"].includes(requestedTab)) setTab(requestedTab);
+    if (requestedTab && ["today", "calendar", "progress", "analysis", "exercises", "clients", "coach", "inbox", "settings", "more"].includes(requestedTab)) setTab(requestedTab);
     if (integration === "strava-connected") {
       setIntegrationMessage("Strava collegato. Puoi importare le corse da Impostazioni.");
     } else if (integration === "strava-denied") {
@@ -223,11 +222,12 @@ export function AssettoApp() {
         {tab === "coach" && isStaff ? <CoachScreen /> : null}
         {tab === "inbox" ? <InboxScreen /> : null}
         {tab === "settings" ? <SettingsScreen /> : null}
+        {tab === "more" ? <MoreScreen /> : null}
       </main>
       <nav className="bottom-nav" aria-label="Navigazione principale">
         {tabs.map(({ id, label, icon: Icon }) => (
-          <button key={id} type="button" className={tab === id ? "is-active" : ""} aria-current={tab === id ? "page" : undefined} onClick={() => navigateToTab(id)}>
-            <Icon aria-hidden="true" /><span>{label}</span>{id === "inbox" && unreadNotifications ? <strong className="nav-badge" aria-label={`${unreadNotifications} notifiche non lette`}>{unreadNotifications > 9 ? "9+" : unreadNotifications}</strong> : null}
+          <button key={id} type="button" className={tab === id || (id === "more" && ["analysis", "inbox", "settings", "exercises"].includes(tab)) ? "is-active" : ""} aria-current={tab === id ? "page" : undefined} onClick={() => navigateToTab(id)}>
+            <Icon aria-hidden="true" /><span>{label}</span>{(id === "inbox" || id === "more") && unreadNotifications ? <strong className="nav-badge" aria-label={`${unreadNotifications} notifiche non lette`}>{unreadNotifications > 9 ? "9+" : unreadNotifications}</strong> : null}
           </button>
         ))}
       </nav>

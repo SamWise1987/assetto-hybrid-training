@@ -1,292 +1,108 @@
-# Guida operativa Assetto — per nuovo agente
+# Guida operativa Assetto / RobertaFunctional — per nuovo agente
 
-Documento di handoff per continuare lo sviluppo. Repo: **https://github.com/SamWise1987/assetto-hybrid-training**
+Documento di handoff. Repo: **https://github.com/SamWise1987/assetto-hybrid-training**
 
 ---
 
 ## Cos'è il progetto
 
-**Assetto** è una PWA mobile-first, **local-first**, per allenamento ibrido:
+**RobertaFunctional (Assetto)** è una piattaforma **cliente–trainer** per allenamento ibrido:
+
 - **Ipertrofia domestica** (manubri, corpo libero)
 - **Corsa** (martedì facile + sabato principale)
 - Blocco di **8 settimane** con autoregolazione deterministica, spiegabile e annullabile
 - Limitazioni cliniche cervicali/spalla documentate in `SAFETY.md`
 
-L'app funziona **senza account** in locale (IndexedDB). Cloud (Supabase) e AI (OpenAI) sono **opt-in**.
+Superfici: **web/PWA** (primaria) + shell **Capacitor iOS/Android** (stessa UI Next.js).
+
+L’accesso richiede **account** (invito admin/trainer). IndexedDB è cache offline; Supabase è la fonte condivisa.
 
 ---
 
-## Stato attuale (cosa è già fatto)
+## Stato attuale (luglio 2026)
 
 ### Core app
-- Onboarding + seed demo (3 settimane)
-- Schermate: Oggi, Calendario, Progressi, Esercizi, Impostazioni
-- Flusso forza: check-in → warmup → serie (peso/reps/RIR) → check-out → progressione automatica
-- Flusso corsa: registrazione durata/RPE → calibrazione martedì → sabato
+- Login account-first (email/password, invite/recovery)
+- Onboarding + consenso clinico
+- Schermate atleta: **Oggi**, Calendario, Progressi, **Altro** (Avvisi, Analisi, Schede, Impostazioni)
+- Flusso forza semplificato: check-in compatto → warmup saltabile → serie con stepper/prefill/rest timer → check-out
+- Flusso corsa da Oggi
 - Export/import JSON, CSV, cancellazione dati
 - PWA + service worker (solo produzione)
 
 ### Motore
 - `src/lib/autoregulation.ts` — progressione forza, readiness, deload
-- `src/lib/run-calibration.ts` — calibrazione corsa intelligente
+- `src/lib/run-calibration.ts` — calibrazione corsa
 - `src/lib/training-engine.ts` — orchestrazione post-seduta
-- `src/lib/templates.ts` — risoluzione nomi allenamento personalizzati
 
-### Backend (Next.js API routes)
-| Endpoint | Metodo | Descrizione |
-|----------|--------|-------------|
-| `/api/health` | GET | Stato backend |
-| `/api/coach` | POST | Revisione settimanale (OpenAI o fallback locale) |
-| `/api/sync/push` | POST | Upload snapshot IndexedDB |
-| `/api/sync/pull` | GET | Download snapshot cloud |
-| `/api/me` | GET/PATCH | Profilo e ruolo utente |
-| `/api/plans` | GET/POST | Lista/crea piani allenamento |
-| `/api/plans/[id]` | PATCH | Modifica piano (nomi sessioni) |
-| `/api/plans/[id]/assign` | POST | Assegna piano ad atleta |
-| `/api/plans/assigned` | GET | Piano attivo dell'atleta |
-| `/api/admin/roles` | POST | Promuovi admin/coach (solo admin) |
+### Backend
+API Next.js su Vercel + Supabase (Auth, Postgres RLS, Realtime inbox). Migrazioni `001`–`008` in `supabase/migrations/`.
 
-### Ruoli admin / coach
-- Tab **Coach** visibile solo a admin/coach
-- Studio piani: rinomina allenamenti, salva piano, assegna ad atleta per email
-- Migration Supabase: `002_roles_and_plans.sql`
+### Health
+- Capacitor + `@capgo/capacitor-health`
+- Import allenamenti (corsa/camminata/forza) + segnali: FC a riposo, HRV, respiro, SpO₂, passi, sonno
+- Persistenza locale in Dexie `healthMetrics` (schema v5)
+- Visibili in Progressi quando disponibili
 
-### Git
-- Pushato su GitHub `master`
-- Ultimo commit significativo: admin/coach plan studio + nomi personalizzabili
+### Native
+- `ios/` e `android/` pronti per build su Mac (vedi `CAPACITOR.md`)
+- Signing App Store / TestFlight e push APNs restano operazioni su Mac con account Apple Developer
 
 ---
 
-## Problema noto: Node.js
+## UX atleta (principi)
 
-**Ambiente attuale:** Node `v20.12.1`  
-**Richiesto:** Node `>=20.19` (consigliato **22 LTS**)
-
-Sintomi con Node vecchio:
-- `npm run dev` impiega ~11 min poi crasha (`TypeError: Cannot read properties of undefined`)
-- ESLint fallisce (`require(...) is not a function`)
-- Playwright E2E timeout (dev server non parte in 120s)
-
-`npm run typecheck` e `npm test` (Vitest) **passano** anche con Node vecchio.
+1. Home = **solo oggi** (una CTA dominante)
+2. Logging mid-set con numeri grandi, stepper, rest timer automatico
+3. Prefill dall’ultima serie dello stesso esercizio
+4. Navigazione primaria corta; Analisi/Avvisi sotto **Altro**
 
 ---
 
-## Passi da eseguire (ordine consigliato)
+## Setup rapido
 
-### 1. Aggiorna Node
-
-**Opzione A — nvm (Mac, consigliata):**
 ```bash
-nvm install 22
-nvm use 22
-nvm alias default 22
-node -v   # deve mostrare v22.x
-```
-
-**Opzione B — Homebrew:**
-```bash
-brew install node@22
-brew link --overwrite node@22
-node -v
-```
-
-**Poi reinstalla dipendenze:**
-```bash
-cd "/Users/samuelerea/Documents/Hybrid app"
-rm -rf node_modules .next
 npm install
-```
-
-### 2. Verifica locale
-
-```bash
-npm run typecheck
-npm test
-npm run lint
-npm run dev          # deve partire in pochi secondi su http://localhost:3000
-npx playwright install chromium
-npm run test:e2e
-npm run build
-```
-
-### 3. Configura `.env.local`
-
-```bash
 cp .env.example .env.local
+# Compila Supabase + ASSETTO_ADMIN_EMAILS
+npm run dev
 ```
 
-Compila:
+Node richiesto: `>=20.19` (consigliato 22+).
 
-```env
-# Admin (la tua email → diventi admin al primo login)
-ASSETTO_ADMIN_EMAILS=tua@email.com
-NEXT_PUBLIC_ADMIN_EMAILS=tua@email.com
-
-# Supabase
-NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-SUPABASE_SERVICE_ROLE_KEY=eyJ...
-
-# OpenAI (opzionale)
-OPENAI_API_KEY=sk-...
-OPENAI_MODEL=gpt-4.1-mini
-```
-
-Riavvia `npm run dev` dopo ogni modifica a `.env.local`.
-
-### 4. Setup Supabase
-
-1. Crea progetto su https://supabase.com
-2. **SQL Editor** → esegui **in ordine**:
-   - `supabase/migrations/001_assetto_backend.sql`
-   - `supabase/migrations/002_roles_and_plans.sql`
-3. **Authentication → Providers** → abilita **Email** (magic link/OTP)
-4. **Authentication → URL Configuration** → redirect consentiti:
-   - `http://localhost:3000`
-   - URL Vercel di produzione (quando deployi)
-5. **Project Settings → API** → copia URL, anon key, service_role key in `.env.local`
-
-### 5. Primo utilizzo nell'app
-
-1. Apri `http://localhost:3000`
-2. Onboarding → accetta disclaimer → **Crea il mio piano**
-3. **Impostazioni** → inserisci email → **Invia link di accesso**
-4. Clicca link nella mail → torni loggato
-5. Se email è in `ASSETTO_ADMIN_EMAILS` → compare tab **Coach**
-6. **Coach** → rinomina allenamenti → **Salva piano**
-7. Inserisci email atleta → **Assegna piano**
-8. (Opzionale) **Carica backup cloud** / **Scarica backup cloud**
-
-### 6. OpenAI (opzionale)
-
-1. API key su https://platform.openai.com
-2. `OPENAI_API_KEY` in `.env.local` (server, più sicuro)
-3. Oppure chiave in **Impostazioni** app (solo dispositivo)
-4. **Impostazioni** → abilita coach AI → **Analisi settimanale**
-
-Senza chiave: funziona il coach deterministico locale (nessuna chiamata esterna).
-
-### 7. Deploy Vercel
-
-1. Importa repo GitHub in Vercel
-2. Framework: **Next.js**, build: `npm run build`
-3. Aggiungi tutte le variabili di `.env.local` in Vercel Environment Variables
-4. Deploy
-5. Aggiungi URL Vercel nei redirect Supabase
-6. Verifica: `https://tuo-dominio.vercel.app/api/health`
-
-### 8. Promuovere un coach (solo admin)
-
-```bash
-curl -X POST http://localhost:3000/api/admin/roles \
-  -H "Authorization: Bearer TUO_JWT_SUPABASE" \
-  -H "Content-Type: application/json" \
-  -d '{"email":"coach@email.com","role":"coach"}'
-```
-
-Il JWT si ottiene dopo login magic link (session Supabase nel browser).
+Comandi: `npm run typecheck`, `npm test`, `npm run lint`, `npm run test:e2e`, `npm run build`.
 
 ---
 
 ## Architettura file chiave
 
 ```text
-src/lib/autoregulation.ts      Regole pure forza/readiness/deload
-src/lib/run-calibration.ts     Calibrazione martedì → sabato
-src/lib/training-engine.ts     Post-seduta: progressione + merge prescrizioni
-src/lib/templates.ts           Nomi allenamento risolti (default + custom + piano)
-src/lib/plans.ts               CRUD piani locali
-src/lib/roles.ts               Admin/coach/athlete
-src/lib/db.ts                  Dexie schema v3, sync locale
-src/lib/remote-sync.ts         Push/pull cloud + syncAccountProfile
-src/lib/ai-coach.ts            Snapshot + prompt OpenAI
-src/components/screens/coach.tsx   Studio piani (staff only)
+src/components/assetto-app.tsx     Shell + tab per ruolo
 src/components/screens/today/      Flusso giornaliero
-supabase/migrations/           Schema PostgreSQL
-e2e/essential-flows.spec.ts    Test Playwright mobile 390×844
-```
-
-### Flussi dati
-
-**Forza:** utente inserisce peso/reps/RIR → check-out → `evaluateExerciseProgression` → `progressionDecisions` + `activePrescriptions` aggiornati.
-
-**Corsa:** utente registra durata/RPE martedì → `calibrateSaturdayRun` → `runCalibrationDecisions` + `runPlans` sabato aggiornati.
-
-**Piani:** coach modifica `displayName` sessioni → salva `training_plans` → assegna → atleta riceve nomi personalizzati via `getResolvedTemplates()`.
-
----
-
-## Regole business (non modificare senza aggiornare docs)
-
-- Upper body: risposta 24h obbligatoria prima di progredire
-- Corsa: max +10% volume settimanale, domenica libera, no recupero aggressivo
-- Sintomi neurologici → hard stop
-- Dolore >3/10 → stop; dolore 3/10 → sostituzione
-- Documentazione: `AUTOREGULATION.md`, `SAFETY.md`
-
----
-
-## Checklist rapida
-
-```
-[ ] Node 22 installato
-[ ] rm -rf node_modules .next && npm install
-[ ] npm run dev ok (< 30 secondi)
-[ ] .env.local compilato
-[ ] Migration 001 + 002 su Supabase
-[ ] Email OTP abilitata + redirect URL
-[ ] Login magic link funziona
-[ ] Tab Coach visibile (admin)
-[ ] Rinomina allenamento + salva piano
-[ ] Assegna piano ad atleta
-[ ] (Opzionale) OPENAI_API_KEY + analisi settimanale
-[ ] (Opzionale) Deploy Vercel + env vars
-[ ] npm run lint && npm run test:e2e passano
+src/components/screens/more.tsx    Hub secondario atleta
+src/lib/native-health.ts           HealthKit / Health Connect
+src/lib/health-vitals.ts           Riepilogo segnali salute
+src/lib/db.ts                      Dexie v5 (include healthMetrics)
+supabase/migrations/               Schema PostgreSQL 001–008
+CAPACITOR.md                       Build iOS/Android
 ```
 
 ---
 
-## Migliorie suggerite (backlog per agente)
+## Regole business
 
-### Priorità alta
-1. **Build nativa Capacitor** — Xcode/Android Studio + HealthKit/Health Connect (vedi `CAPACITOR.md`)
-2. **Fix stabilità dev** — verificare con Node 22 che lint/E2E passano
-3. **Pull piano assegnato** — già implementato in bootstrap app; verificare su device
-
-### Priorità media
-4. **Edit esercizi nel piano** — già in studio coach (serie/reps + run config)
-5. **Undo calibrazioni corsa** — già in Progressi
-6. **Garmin / Huawei** — via sync verso Apple Health / Health Connect (non SDK diretti)
-
-### Priorità bassa
-7. Strava (opzionale, evita se possibile — richiede subscription/API limits)
-8. Notifiche push per seduta del giorno
-9. Multi-blocco (dopo settimana 8, nuovo blocco automatico)
+- Non modificare regole in `AUTOREGULATION.md` / `SAFETY.md` senza aggiornare docs e test
+- Cloud e AI restano opzionali a livello di feature flag, ma il login è obbligatorio
+- Non inventare set/reps da Health: solo riepiloghi e matching a scheda
 
 ---
 
-## Comandi utili
+## Backlog
 
-```bash
-npm run dev          # sviluppo
-npm run build        # build produzione
-npm run typecheck    # TypeScript
-npm test             # Vitest unit
-npm run test:e2e     # Playwright
-npm run lint         # ESLint
-```
-
----
-
-## Note per l'agente
-
-- **Non committare** `.env.local` (è in `.gitignore`)
-- **Non committare** senza richiesta esplicita dell'utente
-- L'app è **local-first**: cloud e AI sono opt-in, mai obbligatori
-- `ASSETTO_ADMIN_EMAILS` promuove ad admin al primo `/api/me` (non sovrascrive coach/admin esistenti)
-- Schema IndexedDB: versione 3 (`templateCustomizations`, `trainingPlans`, `planAssignments`, `accountProfiles`)
-- Test E2E: viewport mobile 390×844, onboarding usa `getByLabel` per checkbox disclaimer
-- Repo path locale: `/Users/samuelerea/Documents/Hybrid app`
+1. Signing + TestFlight iOS su Mac
+2. Push APNs/FCM produzione
+3. Multi-blocco dopo settimana 8
+4. Reminder push seduta del giorno
 
 ---
 
@@ -295,4 +111,5 @@ npm run lint         # ESLint
 - `README.md` — overview tecnica
 - `AUTOREGULATION.md` — regole motore
 - `SAFETY.md` — limiti clinici
+- `CAPACITOR.md` — Health + store
 - `.env.example` — variabili ambiente

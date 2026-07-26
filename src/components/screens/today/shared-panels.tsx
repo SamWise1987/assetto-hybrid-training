@@ -25,8 +25,15 @@ export function ScreenHeader({
   );
 }
 
-export function CompletionPanel({ onHome }: { onHome: () => void }) {
+export function CompletionPanel({
+  onHome,
+  onProgress,
+}: {
+  onHome: () => void;
+  onProgress?: () => void;
+}) {
   const latest = useLiveQuery(() => db.workoutSessions.orderBy("date").last());
+  const latestDecision = useLiveQuery(() => db.progressionDecisions.orderBy("date").last());
   const durationLabel = latest?.durationPrecise
     ?? (latest?.durationMinutes != null ? `${latest.durationMinutes} min` : null);
 
@@ -34,16 +41,22 @@ export function CompletionPanel({ onHome }: { onHome: () => void }) {
     <div className="flow-screen completion-screen">
       <span className="completion-icon"><Check /></span>
       <p className="date-label">Seduta registrata</p>
-      <h1>Fatto. Il piano si è aggiornato.</h1>
+      <h1>Fatto.</h1>
       {durationLabel ? (
         <aside className="session-duration-card">
           <p className="date-label">Tempo sulla scheda</p>
           <strong>{durationLabel}</strong>
-          <span>Dal momento in cui hai iniziato fino al check-out</span>
         </aside>
       ) : null}
-      <p>Le modifiche automatiche sono visibili in Progressi. Per l’upper body registra la risposta nelle 24 ore.</p>
-      <Button onClick={onHome}>Torna a Oggi</Button>
+      {latestDecision && !latestDecision.undoneAt ? (
+        <p className="success-message">Progressione applicata: {latestDecision.reason}</p>
+      ) : (
+        <p>Il piano è aggiornato. Puoi annullare le modifiche automatiche da Progressi.</p>
+      )}
+      <div className="primary-actions primary-actions-stack">
+        <Button onClick={onHome}>Torna a Oggi</Button>
+        {onProgress ? <Button variant="secondary" onClick={onProgress}>Vedi progressi</Button> : null}
+      </div>
     </div>
   );
 }
