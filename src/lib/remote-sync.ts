@@ -218,6 +218,74 @@ export async function pullExternalWorkoutsFromCloud() {
   return workouts;
 }
 
+export async function pushHealthMetrics(metrics: import("./types").HealthMetricSample[]) {
+  const token = await getRemoteAccessToken();
+  if (!token || !metrics.length) return { synced: 0 };
+  const response = await fetch("/api/health-metrics", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      metrics: metrics.map((item) => ({
+        id: item.id,
+        type: item.type,
+        value: item.value,
+        unit: item.unit,
+        recordedAt: item.recordedAt,
+        endAt: item.endAt,
+        source: item.source,
+        platform: item.platform,
+        externalId: item.externalId,
+        platformId: item.platformId,
+        sourceName: item.sourceName,
+        importedAt: item.importedAt,
+      })),
+    }),
+  });
+  if (!response.ok) throw new Error("Sincronizzazione segnali Health non riuscita.");
+  return response.json() as Promise<{ synced: number }>;
+}
+
+export async function pullHealthMetricsFromCloud() {
+  const token = await getRemoteAccessToken();
+  if (!token) return [];
+  const response = await fetch("/api/health-metrics", { headers: { Authorization: `Bearer ${token}` } });
+  if (!response.ok) return [];
+  const body = await response.json() as {
+    metrics: Array<{
+      id: string;
+      metric_type: import("./types").HealthMetricType;
+      value: number;
+      unit: string;
+      recorded_at: string;
+      end_at: string | null;
+      source: "apple_health" | "health_connect";
+      platform: import("./types").PlatformSource;
+      external_id: string;
+      platform_id: string | null;
+      source_name: string | null;
+      imported_at: string;
+    }>;
+  };
+  const metrics = body.metrics.map((item) => ({
+    id: item.id,
+    type: item.metric_type,
+    value: Number(item.value),
+    unit: item.unit,
+    recordedAt: item.recorded_at,
+    endAt: item.end_at ?? undefined,
+    source: item.source,
+    platform: item.platform,
+    externalId: item.external_id,
+    platformId: item.platform_id ?? undefined,
+    sourceName: item.source_name ?? undefined,
+    importedAt: item.imported_at,
+    syncedAt: new Date().toISOString(),
+  }));
+  const { db } = await import("./db");
+  if (metrics.length) await db.healthMetrics.bulkPut(metrics);
+  return metrics;
+}
+
 export async function pullAthleteProfileFromCloud() {
   const token = await getRemoteAccessToken();
   if (!token) return null;

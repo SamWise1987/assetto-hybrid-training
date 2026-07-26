@@ -179,6 +179,7 @@ export function nativeSampleToHealthMetric(
     endAt: sample.endDate,
     source: platform === "ios" ? "apple_health" : "health_connect",
     platform,
+    externalId,
     platformId: sample.platformId,
     sourceName: sample.sourceName,
     importedAt: new Date().toISOString(),
@@ -400,6 +401,11 @@ export async function importNativeWorkouts(afterDays = 30, lastSuccessfulSyncAt?
     const fresh = vitalSamples.filter((sample) => !existingIds.has(sample.id));
     if (fresh.length) await db.healthMetrics.bulkPut(fresh);
     importedMetrics = fresh.length;
+    const { pushHealthMetrics } = await import("./remote-sync");
+    await pushHealthMetrics(vitalSamples).then(async () => {
+      const syncedAt = new Date().toISOString();
+      await db.healthMetrics.bulkPut(vitalSamples.map((sample) => ({ ...sample, syncedAt })));
+    }).catch(() => undefined);
   }
 
   const now = new Date().toISOString();

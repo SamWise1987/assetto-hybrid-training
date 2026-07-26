@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   pullAthleteProfileFromCloud: vi.fn(),
   pullExternalWorkoutsFromCloud: vi.fn(),
+  pullHealthMetricsFromCloud: vi.fn(),
   pullNormalizedHistory: vi.fn(),
   syncAssignedPlanFromCloud: vi.fn(),
 }));
@@ -10,6 +11,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("./remote-sync", () => ({
   pullAthleteProfileFromCloud: mocks.pullAthleteProfileFromCloud,
   pullExternalWorkoutsFromCloud: mocks.pullExternalWorkoutsFromCloud,
+  pullHealthMetricsFromCloud: mocks.pullHealthMetricsFromCloud,
 }));
 vi.mock("./normalized-sync", () => ({ pullNormalizedHistory: mocks.pullNormalizedHistory }));
 vi.mock("./plan-sync", () => ({ syncAssignedPlanFromCloud: mocks.syncAssignedPlanFromCloud }));
@@ -21,6 +23,7 @@ describe("refreshAthleteCloudState", () => {
     vi.clearAllMocks();
     mocks.pullAthleteProfileFromCloud.mockResolvedValue({ user_id: "athlete-id" });
     mocks.pullExternalWorkoutsFromCloud.mockResolvedValue([{ id: "health-1" }, { id: "health-2" }]);
+    mocks.pullHealthMetricsFromCloud.mockResolvedValue([{ id: "metric-1" }, { id: "metric-2" }, { id: "metric-3" }]);
     mocks.pullNormalizedHistory.mockResolvedValue(4);
     mocks.syncAssignedPlanFromCloud.mockResolvedValue({ plan: { id: "plan-1" }, assignment: { id: "assignment-1" }, isNew: true });
   });
@@ -31,12 +34,14 @@ describe("refreshAthleteCloudState", () => {
     expect(result).toMatchObject({
       profileUpdated: true,
       externalWorkoutCount: 2,
+      healthMetricCount: 3,
       normalizedItemCount: 4,
       assignedPlan: { plan: { id: "plan-1" }, isNew: true },
       failures: 0,
     });
     expect(mocks.pullAthleteProfileFromCloud).toHaveBeenCalledOnce();
     expect(mocks.pullExternalWorkoutsFromCloud).toHaveBeenCalledOnce();
+    expect(mocks.pullHealthMetricsFromCloud).toHaveBeenCalledOnce();
     expect(mocks.pullNormalizedHistory).toHaveBeenCalledOnce();
     expect(mocks.syncAssignedPlanFromCloud).toHaveBeenCalledOnce();
   });
@@ -50,6 +55,7 @@ describe("refreshAthleteCloudState", () => {
     const refresh = refreshAthleteCloudState();
     await vi.waitFor(() => expect(mocks.pullAthleteProfileFromCloud).toHaveBeenCalledOnce());
     expect(mocks.pullExternalWorkoutsFromCloud).not.toHaveBeenCalled();
+    expect(mocks.pullHealthMetricsFromCloud).not.toHaveBeenCalled();
     expect(mocks.pullNormalizedHistory).not.toHaveBeenCalled();
     expect(mocks.syncAssignedPlanFromCloud).not.toHaveBeenCalled();
 
@@ -57,6 +63,7 @@ describe("refreshAthleteCloudState", () => {
     await refresh;
 
     expect(mocks.pullExternalWorkoutsFromCloud).toHaveBeenCalledOnce();
+    expect(mocks.pullHealthMetricsFromCloud).toHaveBeenCalledOnce();
     expect(mocks.pullNormalizedHistory).toHaveBeenCalledOnce();
     expect(mocks.syncAssignedPlanFromCloud).toHaveBeenCalledOnce();
   });
@@ -67,6 +74,7 @@ describe("refreshAthleteCloudState", () => {
     await expect(refreshAthleteCloudState()).resolves.toMatchObject({
       profileUpdated: true,
       externalWorkoutCount: 0,
+      healthMetricCount: 3,
       normalizedItemCount: 4,
       assignedPlan: { plan: { id: "plan-1" } },
       failures: 1,

@@ -137,9 +137,14 @@ h1, h2, h3, p { margin-top: 0; }
 .progress-hero strong { font-family: var(--font-display); font-size: clamp(2.4rem, 10vw, 3.4rem); line-height: .9; color: var(--sage); }
 .progress-hero span { color: var(--muted); font-size: .85rem; }
 .health-vitals-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.health-vitals-grid.compact { margin: 8px 0; }
 .health-vitals-grid article { padding: 12px; border: 1px solid var(--border-soft); border-radius: 12px; background: color-mix(in srgb, var(--surface) 88%, transparent); display: grid; gap: 4px; }
 .health-vitals-grid strong { font-family: var(--font-display); font-size: 1.7rem; line-height: 1; color: var(--turquoise); }
 .health-vitals-grid span, .health-vitals-grid small { color: var(--muted); }
+.health-bridge-card { display: grid; gap: 10px; }
+.health-bridge-card > strong { display: inline-flex; align-items: center; gap: 8px; }
+.health-bridge-steps { margin: 0; padding-left: 1.2rem; color: var(--muted); display: grid; gap: 6px; }
+.health-bridge-steps em { color: var(--text); font-style: normal; font-weight: 700; }
 .awaiting-plan-steps { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .awaiting-plan-steps li { display: grid; grid-template-columns: 36px 1fr; gap: 12px; align-items: start; padding: 12px; border: 1px solid var(--border-soft); border-radius: 12px; }
 .awaiting-plan-steps span { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--surface); color: var(--sage); font-weight: 800; }

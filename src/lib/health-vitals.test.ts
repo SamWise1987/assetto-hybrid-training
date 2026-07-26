@@ -13,6 +13,7 @@ describe("summarizeHealthVitals", () => {
         recordedAt: "2026-07-20T08:00:00.000Z",
         source: "apple_health",
         platform: "ios",
+        externalId: "rhr-a",
         importedAt: "2026-07-20T09:00:00.000Z",
       },
       {
@@ -23,6 +24,7 @@ describe("summarizeHealthVitals", () => {
         recordedAt: "2026-07-21T08:00:00.000Z",
         source: "apple_health",
         platform: "ios",
+        externalId: "rhr-b",
         importedAt: "2026-07-21T09:00:00.000Z",
       },
       {
@@ -33,6 +35,7 @@ describe("summarizeHealthVitals", () => {
         recordedAt: "2026-07-21T07:00:00.000Z",
         source: "apple_health",
         platform: "ios",
+        externalId: "spo2-c",
         importedAt: "2026-07-21T09:00:00.000Z",
       },
     ];

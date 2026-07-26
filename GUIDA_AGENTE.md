@@ -41,8 +41,9 @@ API Next.js su Vercel + Supabase (Auth, Postgres RLS, Realtime inbox). Migrazion
 ### Health
 - Capacitor + `@capgo/capacitor-health`
 - Import allenamenti (corsa/camminata/forza) + segnali: FC a riposo, HRV, respiro, SpO₂, passi, sonno
-- Persistenza locale in Dexie `healthMetrics` (schema v5)
-- Visibili in Progressi quando disponibili
+- Persistenza locale Dexie `healthMetrics` + cloud `health_metric_samples` (migrazione `009`)
+- Flusso: Watch → Apple Salute → app iOS → cloud → webapp (Progressi / Impostazioni)
+- Visibili in Progressi e nella card integrazioni
 
 ### Native
 - `ios/` e `android/` pronti per build su Mac (vedi `CAPACITOR.md`)

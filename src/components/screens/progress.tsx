@@ -56,9 +56,10 @@ export function ProgressScreen() {
       {vitals.length ? (
         <Surface>
           <div className="surface-heading">
-            <div><p className="date-label">Apple Health / Health Connect</p><h2>Segnali recenti</h2></div>
+            <div><p className="date-label">Apple Salute / Health Connect</p><h2>Segnali recenti</h2></div>
             <HeartPulse />
           </div>
+          <p className="quiet-note">Sincronizzati dall’orologio via app iOS/Android e disponibili anche sulla webapp.</p>
           <div className="health-vitals-grid">
             {vitals.map((item) => (
               <article key={item.key}>
@@ -69,7 +70,15 @@ export function ProgressScreen() {
             ))}
           </div>
         </Surface>
-      ) : null}
+      ) : (
+        <Surface>
+          <div className="surface-heading">
+            <div><p className="date-label">Apple Salute</p><h2>Nessun segnale ancora</h2></div>
+            <HeartPulse />
+          </div>
+          <p>Collega Apple Salute dall’app iPhone (Impostazioni → integrazioni). FC, respiro, SpO₂, passi e sonno compariranno qui anche sul web.</p>
+        </Surface>
+      )}
 
       {coachReview ? (
         <Surface>

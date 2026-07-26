@@ -111,6 +111,7 @@ describe("nativeWorkoutToRunSession", () => {
       value: 54,
       source: "apple_health",
       platform: "ios",
+      externalId: "hk-rhr-1",
     });
 
     const respiratory = nativeSampleToHealthMetric(

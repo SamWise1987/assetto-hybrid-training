@@ -158,9 +158,11 @@ export interface HealthMetricSample {
   endAt?: string;
   source: "apple_health" | "health_connect";
   platform: PlatformSource;
+  externalId: string;
   platformId?: string;
   sourceName?: string;
   importedAt: string;
+  syncedAt?: string;
 }
 
 export interface RunningWorkoutSegment {
