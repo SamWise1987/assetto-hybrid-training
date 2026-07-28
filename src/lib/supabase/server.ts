@@ -47,3 +47,26 @@ export function backendStatus() {
     schemaVersion: 4,
   };
 }
+
+/** True when the configured Supabase Auth endpoint answers (env alone is not enough). */
+export async function probeSupabaseReachable(timeoutMs = 2500): Promise<boolean | null> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "");
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !anonKey) return null;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(`${url}/auth/v1/health`, {
+      method: "GET",
+      headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+      signal: controller.signal,
+      cache: "no-store",
+    });
+    return response.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}

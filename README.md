@@ -155,6 +155,8 @@ La build di produzione registra `public/sw.js`, mette in cache shell, manifest e
    - `NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY`, `WEB_PUSH_PRIVATE_KEY`, `WEB_PUSH_SUBJECT` per Web Push
 5. Pubblicare. Il service worker viene registrato solo in produzione.
 
+Se la UI di login appare ma l’accesso mostra *Servizio account non raggiungibile* / *Failed to fetch*, il deploy Vercel è ok ma `NEXT_PUBLIC_SUPABASE_URL` punta a un progetto Supabase inesistente o sospeso. Controlla `/api/health` (`supabaseReachable` deve essere `true`), ricrea o ripristina il progetto, riesegui le migrazioni in `supabase/migrations/`, aggiorna le tre variabili su Vercel e **ridistribuisci** (le `NEXT_PUBLIC_*` sono incorporate in build).
+
 La Web Push è già gestita dall'app e dal service worker. APNs e FCM richiedono invece le credenziali provider e i file nativi descritti in [CAPACITOR.md](./CAPACITOR.md); senza queste credenziali restano comunque operative inbox realtime e badge.
 
 Usa `npm run check:production` per verificare variabili provider, `google-services.json`, entitlements iOS e migrazioni richieste senza stampare alcun segreto.

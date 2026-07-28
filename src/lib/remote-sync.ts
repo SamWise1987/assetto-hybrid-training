@@ -4,37 +4,76 @@ import { createBrowserSupabaseClient, getOrCreateDeviceId, isSupabaseConfigured 
 import type { SyncPayload } from "./supabase/sync";
 import type { ExternalWorkout } from "./types";
 
+const ACCOUNT_SERVICE_UNREACHABLE =
+  "Servizio account non raggiungibile. Verifica la connessione o la configurazione Supabase del progetto.";
+
+/** Maps browser/network failures from Supabase Auth into a clear Italian message. */
+export function mapAuthNetworkError(error: unknown): Error {
+  if (error instanceof Error) {
+    const message = error.message.toLowerCase();
+    if (
+      message.includes("failed to fetch")
+      || message.includes("networkerror")
+      || message.includes("load failed")
+      || message.includes("network request failed")
+      || message.includes("fetch failed")
+    ) {
+      return new Error(ACCOUNT_SERVICE_UNREACHABLE);
+    }
+    return error;
+  }
+  return new Error(ACCOUNT_SERVICE_UNREACHABLE);
+}
+
+async function runAuthAction<T>(action: () => Promise<T>): Promise<T> {
+  try {
+    return await action();
+  } catch (error) {
+    throw mapAuthNetworkError(error);
+  }
+}
+
 export async function signInWithEmail(email: string) {
   const client = createBrowserSupabaseClient();
   if (!client) throw new Error("Servizio di accesso non disponibile.");
 
-  const { error } = await client.auth.signInWithOtp({
-    email,
-    options: { emailRedirectTo: `${window.location.origin}/` },
+  await runAuthAction(async () => {
+    const { error } = await client.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: `${window.location.origin}/` },
+    });
+    if (error) throw new Error(error.message);
   });
-  if (error) throw new Error(error.message);
 }
 
 export async function signInWithPassword(email: string, password: string) {
   const client = createBrowserSupabaseClient();
   if (!client) throw new Error("Servizio di accesso non disponibile.");
 
-  const { error } = await client.auth.signInWithPassword({ email, password });
-  if (error) throw new Error(error.message);
+  await runAuthAction(async () => {
+    const { error } = await client.auth.signInWithPassword({ email, password });
+    if (error) throw new Error(error.message);
+  });
 }
 
 export async function updateRemotePassword(password: string) {
   const client = createBrowserSupabaseClient();
   if (!client) throw new Error("Servizio di accesso non disponibile.");
-  const { error } = await client.auth.updateUser({ password });
-  if (error) throw new Error(error.message);
+  await runAuthAction(async () => {
+    const { error } = await client.auth.updateUser({ password });
+    if (error) throw new Error(error.message);
+  });
 }
 
 export async function getRemoteSession() {
   const client = createBrowserSupabaseClient();
   if (!client) return null;
-  const { data } = await client.auth.getSession();
-  return data.session;
+  try {
+    const { data } = await client.auth.getSession();
+    return data.session;
+  } catch {
+    return null;
+  }
 }
 
 export function onRemoteAuthChange(callback: (authenticated: boolean) => void) {
@@ -74,10 +113,12 @@ export async function sendPasswordReset(email: string) {
   const client = createBrowserSupabaseClient();
   if (!client) throw new Error("Servizio di accesso non disponibile.");
 
-  const { error } = await client.auth.resetPasswordForEmail(email, {
-    redirectTo: `${window.location.origin}/auth/callback?type=recovery`,
+  await runAuthAction(async () => {
+    const { error } = await client.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/callback?type=recovery`,
+    });
+    if (error) throw new Error(error.message);
   });
-  if (error) throw new Error(error.message);
 }
 
 export async function signOutRemote() {
