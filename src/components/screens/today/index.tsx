@@ -12,6 +12,7 @@ import type { DailyReadiness, ExercisePrescription, WorkoutTemplate } from "@/li
 import { canManagePlans } from "@/lib/roles";
 import { useTabNavigation } from "@/lib/tab-navigation";
 import { getDisplayName, getWelcomeGreeting } from "@/lib/user-display";
+import { localDateKey } from "@/lib/local-date";
 import { Button, Surface } from "../../ui";
 import { RunFlow } from "./run-flow";
 import { WorkoutFlow } from "./workout-flow";
@@ -20,7 +21,7 @@ import { NextDayPanel, CompletionPanel } from "./shared-panels";
 type Mode = "overview" | "scheda" | "checkin" | "stop" | "warmup" | "workout" | "checkout" | "done" | "next-day" | "run";
 
 const today = new Date();
-const isoToday = today.toISOString().slice(0, 10);
+const isoToday = localDateKey(today);
 const dateLabel = new Intl.DateTimeFormat("it-IT", { weekday: "long", day: "numeric", month: "long" }).format(today);
 
 export const makeReadiness = (): DailyReadiness => ({

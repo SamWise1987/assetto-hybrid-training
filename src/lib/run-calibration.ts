@@ -1,6 +1,7 @@
 import { addDays, getDay, startOfWeek } from "date-fns";
 import type { RunCalibrationDecision, RunPlan, RunSession } from "./types";
 import { capWeeklyRunMinutes } from "./autoregulation";
+import { localDateKey } from "./local-date";
 
 export const RUN_DAYS = { tuesday: 2, saturday: 6 } as const;
 
@@ -167,7 +168,7 @@ export function weekDates(reference = new Date()) {
   const monday = startOfWeek(reference, { weekStartsOn: 1 });
   return Array.from({ length: 7 }, (_, index) => {
     const date = addDays(monday, index);
-    return { date: date.toISOString().slice(0, 10), dayOfWeek: getDay(date) };
+    return { date: localDateKey(date), dayOfWeek: getDay(date) };
   });
 }
 

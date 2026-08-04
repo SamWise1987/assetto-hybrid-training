@@ -4,9 +4,10 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useState } from "react";
 import { ArrowLeft, Check } from "lucide-react";
 import { db, enqueueSync } from "@/lib/db";
+import { localDateKey } from "@/lib/local-date";
 import { Button, ScaleControl, Toggle } from "../../ui";
 
-const isoToday = new Date().toISOString().slice(0, 10);
+const isoToday = localDateKey();
 
 export function ScreenHeader({
   title,

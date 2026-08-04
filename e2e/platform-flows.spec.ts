@@ -278,6 +278,36 @@ test("trainer apre il cliente e modifica una copia strutturata della corsa", asy
   await page.screenshot({ path: `/tmp/roberta-trainer-builder-${testInfo.project.name}.png`, fullPage: true });
 });
 
+test("cliente usa il player guidato della corsa su web e app", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium", "Il player condivide la stessa logica a ogni breakpoint; verifichiamo il viewport iPhone.");
+  await installSession(page, athleteId, "alex@example.com");
+  await mockPlatformApi(page, "athlete");
+
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Corsa facile", level: 1 })).toBeVisible();
+  await expect(page.getByText("30 min · facile", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: /Registra corsa/ }).click();
+
+  await expect(page.getByRole("heading", { name: "Sequenza guidata" })).toBeVisible();
+  await expect(page.getByText("Passaggio 1 di 3")).toBeVisible();
+  await expect(page.getByRole("timer", { name: "Tempo residuo del passaggio" })).toContainText("05:00");
+
+  await page.getByRole("button", { name: "Avvia workout" }).click();
+  await expect(page.getByRole("button", { name: "Metti in pausa" })).toBeVisible();
+  await page.getByRole("button", { name: "Metti in pausa" }).click();
+  await expect(page.getByRole("button", { name: "Riprendi workout" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Passaggio successivo" }).click();
+  await expect(page.getByText("Passaggio 2 di 3")).toBeVisible();
+  await expect(page.getByText("Ritmo facile", { exact: true }).first()).toBeVisible();
+  await page.getByRole("button", { name: "Passaggio precedente" }).click();
+  await expect(page.getByText("Passaggio 1 di 3")).toBeVisible();
+
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(1);
+  await page.screenshot({ path: `/tmp/roberta-run-player-${testInfo.project.name}.png`, fullPage: true });
+});
+
 test("invito web completa login e mostra onboarding condiviso", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chromium", "Il primo accesso viene provato sul viewport mobile principale.");
   await mockPlatformApi(page, "athlete", false);
