@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calibrateSaturdayRun, defaultRunPlanForDay, sumRunMinutes } from "./run-calibration";
+import { calibrateSaturdayRun, defaultRunPlanForDay, sumRunMinutes, weekDates } from "./run-calibration";
 import type { RunSession } from "./types";
 
 const tuesdayRun = (overrides: Partial<RunSession> = {}): RunSession => ({
@@ -81,6 +81,18 @@ describe("calibrazione corsa", () => {
     const saturday = defaultRunPlanForDay(4, 6, "2026-07-18");
     expect(tuesday?.durationMinutes).toBe(50);
     expect(saturday?.type).toBe("long-easy");
+  });
+
+  it("mantiene le date della settimana nel calendario locale", () => {
+    expect(weekDates(new Date(2026, 7, 4, 12)).map((item) => item.date)).toEqual([
+      "2026-08-03",
+      "2026-08-04",
+      "2026-08-05",
+      "2026-08-06",
+      "2026-08-07",
+      "2026-08-08",
+      "2026-08-09",
+    ]);
   });
 
   it("somma i minuti di corsa", () => {

@@ -5,17 +5,23 @@ export const coachId = "22222222-2222-4222-8222-222222222222";
 export const planId = "33333333-3333-4333-8333-333333333333";
 export const relationshipId = "44444444-4444-4444-8444-444444444444";
 
+const easyRunSegments = [
+  { id: "seg-1", phase: "warmup", durationSeconds: 300, targetRpe: [2, 3], instructions: "Riscaldamento" },
+  { id: "seg-2", phase: "work", durationSeconds: 1200, targetRpe: [3, 4], instructions: "Ritmo facile" },
+  { id: "seg-3", phase: "cooldown", durationSeconds: 300, targetRpe: [1, 2], instructions: "Defaticamento" },
+];
+
 export const assignedPlan = {
   id: planId,
   name: "Piano Hybrid test",
   description: "Piano condiviso web e app",
   sessions: [
     { templateId: "lower-a", dayOfWeek: 1, displayName: "Lower forza", kind: "strength", estimatedMinutes: 45 },
-    { templateId: "short-run", dayOfWeek: 2, displayName: "Corsa facile", kind: "run", estimatedMinutes: 30, runConfig: { type: "easy", durationMinutes: 30, workoutTemplateId: "run-template-easy-30", segments: [{ id: "seg-1", phase: "warmup", durationSeconds: 300, targetRpe: [2, 3], instructions: "Riscaldamento" }, { id: "seg-2", phase: "work", durationSeconds: 1200, targetRpe: [3, 4], instructions: "Ritmo facile" }, { id: "seg-3", phase: "cooldown", durationSeconds: 300, targetRpe: [1, 2], instructions: "Defaticamento" }] } },
+    { templateId: "short-run", dayOfWeek: 2, displayName: "Corsa facile", kind: "run", estimatedMinutes: 30, runConfig: { type: "easy", durationMinutes: 30, workoutTemplateId: "run-template-easy-30", segments: easyRunSegments } },
     { templateId: "upper", dayOfWeek: 4, displayName: "Upper ipertrofia", kind: "strength", estimatedMinutes: 45 },
     { templateId: "main-run", dayOfWeek: 6, displayName: "Lungo", kind: "run", estimatedMinutes: 55, runConfig: { type: "long-easy", durationMinutes: 55 } },
   ],
-  runSessions: [{ dayOfWeek: 2, type: "easy", durationMinutes: 30, workoutTemplateId: "run-template-easy-30" }, { dayOfWeek: 6, type: "long-easy", durationMinutes: 55 }],
+  runSessions: [{ dayOfWeek: 2, type: "easy", durationMinutes: 30, workoutTemplateId: "run-template-easy-30", segments: easyRunSegments }, { dayOfWeek: 6, type: "long-easy", durationMinutes: 55 }],
   createdBy: coachId,
   createdAt: "2026-07-01T08:00:00.000Z",
   updatedAt: "2026-07-14T08:00:00.000Z",

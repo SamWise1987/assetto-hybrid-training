@@ -14,8 +14,9 @@ import { Button, ScaleControl, Toggle } from "../../ui";
 import { adjustForReadiness } from "@/lib/autoregulation";
 import { formatPreciseDuration } from "@/lib/duration";
 import { currentPlatform } from "@/lib/platform";
+import { localDateKey } from "@/lib/local-date";
 
-const isoToday = new Date().toISOString().slice(0, 10);
+const isoToday = localDateKey();
 
 const setSchema = z.object({
   weight: z.coerce.number().min(0).max(100),

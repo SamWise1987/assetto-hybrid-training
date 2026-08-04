@@ -48,6 +48,7 @@ import { getDay, subWeeks } from "date-fns";
 import { BLOCK, DEMO_SEED, EQUIPMENT, EXERCISES, PROFILE, TEMPLATES } from "./program";
 import { RUNNING_WORKOUT_TEMPLATES } from "@/data/running-workout-templates";
 import { isTemporalHealthDuplicate } from "./health-matching";
+import { localDateKey } from "./local-date";
 
 const defaultSettings: AppSettings = {
   id: "app-settings",
@@ -251,7 +252,7 @@ export async function seedInitialData(options?: {
   name?: string;
   preferredGreeting?: import("./types").PreferredGreeting;
 }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateKey();
   const existingSettings = await db.appSettings.get("app-settings");
   const resetTables = [
     db.profiles, db.equipment, db.safetyProfiles, db.blocks, db.exercises, db.templates,
@@ -492,7 +493,7 @@ export async function exportHistoryCsv() {
 
 export async function getTodayRunPlan(date = new Date()) {
   await ensureRunPlansForCurrentWeek();
-  const iso = date.toISOString().slice(0, 10);
+  const iso = localDateKey(date);
   return db.runPlans.where("date").equals(iso).first();
 }
 

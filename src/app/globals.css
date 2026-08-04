@@ -379,6 +379,38 @@ h1, h2, h3, p { margin-top: 0; }
 .run-segment-list article { display: grid; grid-template-columns: minmax(90px, .35fr) 1fr; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border-soft); }
 .run-segment-list article strong { color: var(--sage); text-transform: capitalize; }
 .run-segment-list article span { color: var(--muted); }
+.run-workout-player { display: grid; gap: 18px; overflow: hidden; }
+.run-player-total { color: var(--muted); font-size: .78rem; font-variant-numeric: tabular-nums; text-align: right; }
+.run-player-progress { width: 100%; height: 8px; border: 0; border-radius: 999px; overflow: hidden; background: #1a2b36; accent-color: var(--sage); }
+.run-player-progress::-webkit-progress-bar { background: #1a2b36; }
+.run-player-progress::-webkit-progress-value { background: linear-gradient(90deg, var(--turquoise), var(--sage)); border-radius: inherit; }
+.run-player-progress::-moz-progress-bar { background: linear-gradient(90deg, var(--turquoise), var(--sage)); border-radius: inherit; }
+.run-player-current { padding: 18px; border: 1px solid #35695a; border-radius: var(--radius); background: linear-gradient(145deg, #102b27, #0f2230); display: grid; gap: 10px; text-align: center; }
+.run-player-current > p:first-child { margin: 0; color: var(--sage); font-size: .75rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.run-player-current h3 { margin: 0; font-family: var(--font-display); font-size: clamp(1.8rem, 8vw, 2.7rem); line-height: 1; }
+.run-player-clock { display: grid; gap: 4px; justify-items: center; }
+.run-player-clock strong { font-family: var(--font-display); font-size: clamp(3.3rem, 16vw, 5.4rem); line-height: .9; color: var(--sage); font-variant-numeric: tabular-nums; }
+.run-player-clock.is-manual strong { font-size: clamp(2.5rem, 12vw, 4rem); }
+.run-player-clock span { color: var(--muted); font-size: .78rem; }
+.run-player-instructions { margin: 2px auto 0; max-width: 34rem; font-weight: 700; }
+.run-player-targets { display: flex; flex-wrap: wrap; justify-content: center; gap: 7px; }
+.run-player-targets span { padding: 6px 9px; border-radius: 999px; background: #102330; color: #d7ebe0; font-size: .75rem; font-weight: 750; }
+.run-player-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.run-player-actions .button-primary { grid-column: 1 / -1; grid-row: 1; }
+.run-player-actions .button { min-width: 0; white-space: normal; }
+.run-player-overview { list-style: none; margin: 0; padding: 0; display: grid; }
+.run-player-overview li { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; align-items: start; padding: 10px 0; border-top: 1px solid var(--border-soft); color: var(--muted); }
+.run-player-overview li > span { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--border); font-size: .72rem; font-weight: 800; }
+.run-player-overview li div { min-width: 0; display: grid; gap: 2px; }
+.run-player-overview li strong { color: inherit; }
+.run-player-overview li small { overflow-wrap: anywhere; }
+.run-player-overview li.is-current { color: var(--text); }
+.run-player-overview li.is-current > span { border-color: var(--sage); background: var(--sage-dark); color: var(--sage); }
+.run-player-overview li.is-complete { color: var(--sage); }
+.run-player-overview li.is-complete > span { border-color: var(--sage); background: var(--sage); color: var(--bg-deep); }
+.run-player-complete { padding: 20px; border: 1px solid #35695a; border-radius: var(--radius); background: #102b27; display: grid; gap: 10px; justify-items: start; }
+.run-player-complete strong { font-family: var(--font-display); font-size: 2rem; }
+.run-player-complete p { margin: 0; color: var(--muted); }
 .danger-zone { border-color: #78383e; background: var(--danger-bg); }
 .danger-zone .surface-heading > svg { color: var(--danger); }
 
@@ -537,6 +569,8 @@ h1, h2, h3, p { margin-top: 0; }
   .today-hero { min-height: 320px; }
   .today-hero h1 { font-size: 8rem; }
   .screen-stack, .flow-screen { max-width: 760px; margin: 0 auto; padding-top: 36px; }
+  .run-player-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .run-player-actions .button-primary { grid-column: auto; grid-row: auto; }
   .exercise-library { grid-template-columns: 1fr 1fr; gap: 0 26px; }
   .bottom-nav button { font-size: .78rem; }
   .calendar-day { min-height: 96px; }

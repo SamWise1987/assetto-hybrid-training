@@ -8,6 +8,8 @@ import type { RunPlan, RunSession } from "@/lib/types";
 import { Button, Field, ScaleControl, Surface } from "../../ui";
 import { ScreenHeader } from "./shared-panels";
 import { currentPlatform } from "@/lib/platform";
+import { localDateKey } from "@/lib/local-date";
+import { RunWorkoutPlayer } from "./run-workout-player";
 
 const runSchema = z.object({
   duration: z.coerce.number().min(5).max(240),
@@ -59,7 +61,7 @@ export function RunFlow({
     }
 
     setBusy(true);
-    const date = new Date().toISOString().slice(0, 10);
+    const date = localDateKey();
     const run: RunSession = {
       id: crypto.randomUUID(),
       date,
@@ -112,7 +114,7 @@ export function RunFlow({
         </Surface>
       ) : null}
 
-      {plan?.segments?.length ? <Surface className="run-segment-list"><div className="surface-heading"><div><p className="date-label">Player workout</p><h2>Sequenza di oggi</h2></div><Activity /></div>{plan.segments.map((segment, index) => <article key={segment.id}><strong>{index + 1}. {segment.phase}</strong><span>{segment.repeats ? `${segment.repeats}× ` : ""}{segment.distanceMeters ? `${segment.distanceMeters} m` : `${Math.round((segment.durationSeconds ?? 0) / 60)} min`} · {segment.instructions}</span></article>)}</Surface> : null}
+      {plan?.segments?.length ? <RunWorkoutPlayer segments={plan.segments} /> : null}
 
       <Surface className="run-form">
         <label className="field">
