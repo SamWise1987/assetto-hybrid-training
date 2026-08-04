@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Image from "next/image";
-import { Dumbbell, Search, ShieldCheck } from "lucide-react";
+import { Search, ShieldCheck } from "lucide-react";
 import { getAllExercises, getExerciseCount, getExercisePatterns } from "@/lib/exercise-library";
 import { EmptyState, Field } from "../ui";
 import { handleRovingTabKey } from "@/lib/keyboard-navigation";
@@ -26,7 +26,7 @@ export function ExercisesScreen() {
       <header className="section-heading">
         <p className="date-label">Libreria completa</p>
         <h1>Esercizi</h1>
-        <p>{getExerciseCount()} esercizi disponibili con immagini, muscoli coinvolti e attrezzatura.</p>
+        <p>{getExerciseCount()} esercizi con istruzioni, muscoli coinvolti e attrezzatura. Immagini disponibili quando presenti nella fonte.</p>
       </header>
 
       <div className="search-field">
@@ -58,9 +58,9 @@ export function ExercisesScreen() {
         {filtered.length ? (
           <div className="exercise-library">
             {filtered.map((exercise) => (
-              <article key={exercise.id} className="exercise-card">
-                <div className="exercise-card-media">
-                  {exercise.imageUrl ? (
+              <article key={exercise.id} className={`exercise-card ${exercise.imageUrl ? "has-media" : "is-text-only"}`}>
+                {exercise.imageUrl ? (
+                  <div className="exercise-card-media">
                     <Image
                       src={exercise.imageUrl}
                       alt={exercise.name}
@@ -68,12 +68,8 @@ export function ExercisesScreen() {
                       height={300}
                       unoptimized
                     />
-                  ) : (
-                    <div className="exercise-card-placeholder" aria-hidden="true">
-                      <Dumbbell />
-                    </div>
-                  )}
-                </div>
+                  </div>
+                ) : null}
                 <div className="exercise-card-body">
                   <div className="exercise-title">
                     <div>
@@ -86,7 +82,10 @@ export function ExercisesScreen() {
                   {exercise.equipment?.length ? (
                     <p className="exercise-equipment">{exercise.equipment.join(" · ")}</p>
                   ) : null}
-                  {exercise.description ? <p className="exercise-description">{exercise.description}</p> : null}
+                  <div className="exercise-instructions">
+                    <strong>Come eseguirlo</strong>
+                    <p className="exercise-description">{exercise.description?.trim() || "Istruzioni non ancora disponibili nella fonte. Il trainer deve confermare l’esecuzione prima di assegnare l’esercizio."}</p>
+                  </div>
                   {exercise.substitutions.length ? (
                     <div>
                       <strong>Varianti</strong>

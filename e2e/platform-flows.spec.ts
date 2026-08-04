@@ -231,16 +231,28 @@ test("trainer apre il cliente e modifica una copia strutturata della corsa", asy
   await expect(page.getByText("Aderenza · 28 gg")).toBeVisible();
   await expect(page.getByText("Forza · 28 gg")).toBeVisible();
   await expect(page.getByText("Corse · 28 gg")).toBeVisible();
-  await expect(page.getByText("Piano Hybrid test")).toBeVisible();
+  await expect(page.getByText("Piano Hybrid test").first()).toBeVisible();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
 
-  if (testInfo.project.name !== "desktop-chromium") return;
+  await page.getByRole("button", { name: "Analisi" }).click();
+  await expect(page.getByRole("heading", { name: "Riepilogo prima della decisione" })).toBeVisible();
+  await expect(page.getByText("88%")).toBeVisible();
+  await expect(page.getByText("Dati Health sincronizzati")).toBeVisible();
+  await expect(page.getByText("Registrazione completa nell’app")).toBeVisible();
 
   await page.getByRole("button", { name: "Piani" }).click();
   await page.waitForTimeout(500);
   expect(pageErrors, pageErrors.map((error) => error.stack ?? error.message).join("\n\n")).toEqual([]);
   await expect(page.getByRole("heading", { name: "Studio piani" })).toBeVisible();
+  await expect(page.getByLabel("Piano da modificare")).toHaveValue(planId);
+  await page.getByRole("button", { name: "Crea nuovo piano" }).click();
+  await expect(page.getByText("Bozza non salvata")).toBeVisible();
+  await expect(page.getByLabel("Piano da modificare")).toHaveValue("");
+  await page.getByLabel("Nome piano").fill("Piano corsa progressivo");
+  await page.getByRole("button", { name: "Salva piano" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Piano salvato." })).toBeVisible();
+  await expect(page.getByLabel("Piano da modificare")).toHaveValue("99999999-9999-4999-8999-999999999999");
   const runArticle = page.locator(".week-list article").filter({
     has: page.getByRole("textbox", { name: "Allenamento (run)" }),
   }).first();
@@ -249,7 +261,7 @@ test("trainer apre il cliente e modifica una copia strutturata della corsa", asy
   await expect(runArticle.getByText("Segmento 1")).toBeVisible();
   await runArticle.getByLabel("Ritmo target").first().fill("6:00/km");
   await expect(runArticle.getByLabel("Ritmo target").first()).toHaveValue("6:00/km");
-  await page.screenshot({ path: "/tmp/roberta-trainer-builder-desktop.png", fullPage: true });
+  await page.screenshot({ path: `/tmp/roberta-trainer-builder-${testInfo.project.name}.png`, fullPage: true });
 });
 
 test("invito web completa login e mostra onboarding condiviso", async ({ page }, testInfo) => {
@@ -276,8 +288,7 @@ test("invito web completa login e mostra onboarding condiviso", async ({ page },
   await expect(page.getByText("Alex", { exact: true }).first()).toBeVisible();
 });
 
-test("admin vede analisi operative senza dettagli sanitari individuali", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop-chromium", "Il controllo privacy admin viene eseguito una volta sul layout desktop.");
+test("admin vede analisi operative senza dettagli sanitari individuali", async ({ page }) => {
   await installSession(page, coachId, "admin@example.com");
   await mockPlatformApi(page, "admin");
   await page.goto("/");
@@ -288,7 +299,8 @@ test("admin vede analisi operative senza dettagli sanitari individuali", async (
   await expect(page.getByRole("button", { name: "Crea account trainer" })).toHaveCount(0);
   await page.getByRole("button", { name: "Analisi" }).click();
   await expect(page.getByRole("heading", { name: "Analisi operative" })).toBeVisible();
-  await expect(page.getByText(/dettagli atleta protetti/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Stato Health aggregato" })).toBeVisible();
+  await expect(page.getByText(/nessun dettaglio sanitario individuale/i)).toBeVisible();
   await expect(page.getByLabel("Cliente")).toHaveCount(0);
   await expect(page.getByText("Private rationale")).toHaveCount(0);
 });
@@ -319,12 +331,15 @@ test("tab e griglia calendario supportano frecce e focus roving", async ({ page 
   await expect(page.locator('[role="gridcell"][aria-current="date"]')).toHaveCount(1);
 });
 
-test("i filtri della libreria espongono tab e pannello accessibili", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop-chromium", "Il comportamento dei filtri è indipendente dal breakpoint.");
+test("i filtri della libreria espongono tab e pannello accessibili", async ({ page }) => {
   await installSession(page, coachId, "trainer@example.com");
   await mockPlatformApi(page, "coach");
   await page.goto("/");
   await page.getByRole("button", { name: "Libreria" }).click();
+
+  await expect(page.locator(".exercise-card.is-text-only").first()).toBeVisible();
+  await expect(page.getByText("Come eseguirlo").first()).toBeVisible();
+  await expect(page.locator(".exercise-card.is-text-only .exercise-media-placeholder")).toHaveCount(0);
 
   const allTab = page.getByRole("tab", { name: "Tutti" });
   await allTab.focus();
