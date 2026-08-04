@@ -4,6 +4,7 @@ import { db } from "./db";
 import { getRemoteAccessToken, syncAccountProfile } from "./remote-sync";
 import type { DailyReadiness, NextDayResponse, RunSession, WorkoutSession } from "./types";
 import { reportAppError } from "./error-monitor";
+import { isSyncItemAllowedForRole } from "./sync-scope";
 
 let flushing = false;
 
@@ -19,7 +20,10 @@ export async function flushSyncQueue() {
     if (!token) return 0;
     let synced = 0;
     while (isOnline()) {
-      const items = (await db.syncQueue.where("attemptCount").equals(0).sortBy("createdAt")).slice(0, 100);
+      const account = await db.accountProfiles.get("account-profile");
+      const items = (await db.syncQueue.where("attemptCount").equals(0).sortBy("createdAt"))
+        .filter((item) => isSyncItemAllowedForRole(item, account?.role))
+        .slice(0, 100);
       if (!items.length) return synced;
       const send = (batch: typeof items) => fetch("/api/sync/normalized", {
         method: "POST",
@@ -77,7 +81,10 @@ export function registerOnlineSync() {
 }
 
 export async function retryFailedSync() {
-  const failed = await db.syncQueue.filter((item) => item.attemptCount > 0).toArray();
+  const account = await db.accountProfiles.get("account-profile");
+  const failed = await db.syncQueue
+    .filter((item) => item.attemptCount > 0 && isSyncItemAllowedForRole(item, account?.role))
+    .toArray();
   await Promise.all(failed.map((item) => db.syncQueue.put({ ...item, attemptCount: 0, lastError: undefined })));
   return flushSyncQueue();
 }

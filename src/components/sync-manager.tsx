@@ -5,11 +5,26 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/lib/db";
 import { registerOnlineSync, retryFailedSync } from "@/lib/normalized-sync";
 import { syncBannerState } from "@/lib/sync-status";
+import { isSyncItemAllowedForRole } from "@/lib/sync-scope";
 
 export function SyncManager() {
-  const pending = useLiveQuery(() => db.syncQueue.count()) ?? 0;
-  const failed = useLiveQuery(() => db.syncQueue.filter((item) => item.attemptCount > 0).count()) ?? 0;
-  const conflicts = useLiveQuery(() => db.syncQueue.filter((item) => item.lastError?.startsWith("Conflitto:") === true).count()) ?? 0;
+  const role = useLiveQuery(
+    () => db.accountProfiles.get("account-profile").then((account) => account?.role),
+    [],
+    null,
+  );
+  const pending = useLiveQuery(
+    () => role === null ? 0 : db.syncQueue.filter((item) => isSyncItemAllowedForRole(item, role)).count(),
+    [role],
+  ) ?? 0;
+  const failed = useLiveQuery(
+    () => role === null ? 0 : db.syncQueue.filter((item) => item.attemptCount > 0 && isSyncItemAllowedForRole(item, role)).count(),
+    [role],
+  ) ?? 0;
+  const conflicts = useLiveQuery(
+    () => role === null ? 0 : db.syncQueue.filter((item) => item.lastError?.startsWith("Conflitto:") === true && isSyncItemAllowedForRole(item, role)).count(),
+    [role],
+  ) ?? 0;
   const [online, setOnline] = useState(() => typeof navigator === "undefined" || navigator.onLine);
   useEffect(() => {
     const unregisterSync = registerOnlineSync();
@@ -23,7 +38,7 @@ export function SyncManager() {
       window.removeEventListener("offline", onOffline);
     };
   }, []);
-  if (online && !pending) return null;
+  if (role === null || (online && !pending)) return null;
   const banner = syncBannerState({ online, pending, failed, conflicts });
   return <div className={`sync-banner ${banner.tone === "error" ? "has-error" : ""}`} role={banner.tone === "error" ? "alert" : "status"}>
     <span>{banner.message}</span>
