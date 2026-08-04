@@ -105,6 +105,40 @@ describe("normalized offline sync", () => {
     expect(await db.syncQueue.count()).toBe(0);
   });
 
+  it("uno staff non invia la vecchia coda atleta ma conserva quei dati sul dispositivo", async () => {
+    await db.accountProfiles.put({
+      id: "account-profile",
+      userId: "admin-1",
+      email: "admin@example.com",
+      displayName: "Admin",
+      role: "admin",
+      updatedAt: "2026-08-04T10:00:00.000Z",
+    });
+    await db.syncQueue.bulkAdd([
+      { id: "queue-legacy-run", entity: "run", entityId: "legacy-run", operation: "upsert", payload: { id: "legacy-run" }, createdAt: "2026-07-15T10:00:00.000Z", attemptCount: 0 },
+      { id: "queue-profile", entity: "profile", entityId: "admin-1", operation: "upsert", payload: { displayName: "Admin aggiornato" }, createdAt: "2026-08-04T10:01:00.000Z", attemptCount: 0 },
+    ]);
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      void input;
+      void init;
+      return new Response(JSON.stringify({ synced: 1 }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+    vi.stubGlobal("navigator", { onLine: true });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(flushSyncQueue()).resolves.toBe(1);
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)).items).toEqual([
+      { entity: "profile", entityId: "admin-1", payload: { displayName: "Admin aggiornato" } },
+    ]);
+    expect(await db.syncQueue.get("queue-legacy-run")).toBeDefined();
+    expect(await db.syncQueue.get("queue-profile")).toBeUndefined();
+  });
+
   it("isola l'elemento non valido e sincronizza gli altri dello stesso batch", async () => {
     await db.syncQueue.bulkAdd([
       { id: "queue-bad", entity: "run", entityId: "bad-run", operation: "upsert", payload: { invalid: true }, createdAt: "2026-07-15T10:00:00.000Z", attemptCount: 0 },
