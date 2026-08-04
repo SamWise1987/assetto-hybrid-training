@@ -1,5 +1,11 @@
 import { expect, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { assignedPlan, athleteId, coachId, installSession, mockPlatformApi, planId } from "./platform-helpers";
+
+async function openAthleteSection(page: Page, label: "Analisi" | "Avvisi") {
+  await page.getByRole("button", { name: /^Altro/ }).click();
+  await page.getByRole("button", { name: new RegExp(`^${label}`) }).click();
+}
 
 test("cliente mantiene piano, Health, analisi e inbox anche dopo reload offline", async ({ page, context }, testInfo) => {
   await installSession(page, athleteId, "alex@example.com");
@@ -11,17 +17,17 @@ test("cliente mantiene piano, Health, analisi e inbox anche dopo reload offline"
   await page.getByRole("button", { name: "Progressi" }).click();
   await expect(page.getByText("Aderenza blocco corrente")).toBeVisible();
 
-  await page.getByRole("button", { name: "Analisi" }).click();
+  await openAthleteSection(page, "Analisi");
   await expect(page.getByRole("heading", { name: "Fonti dei dati" })).toBeVisible();
   await expect(page.getByText(/apple health/i).first()).toBeVisible();
   await expect(page.getByText(/nessuna serie inventata/i)).toBeVisible();
 
-  await page.getByRole("button", { name: /Avvisi/ }).click();
+  await openAthleteSection(page, "Avvisi");
   await expect(page.getByText("Il tuo piano è stato aggiornato")).toBeVisible();
   await page.getByRole("button", { name: "Apri avviso: Il tuo piano è stato aggiornato" }).click();
   await expect(page.getByRole("button", { name: "Oggi" })).toHaveAttribute("aria-current", "page");
   await expect(page).toHaveURL(/\?tab=today$/);
-  await page.getByRole("button", { name: /Avvisi/ }).click();
+  await openAthleteSection(page, "Avvisi");
   await page.screenshot({ path: `/tmp/roberta-athlete-${testInfo.project.name}.png`, fullPage: true });
 
   await page.evaluate(() => navigator.serviceWorker?.ready);
@@ -109,7 +115,7 @@ test("la web app aggiorna le attività Health quando torna visibile", async ({ p
   });
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Analisi" }).click();
+  await openAthleteSection(page, "Analisi");
   await expect(page.getByText(/1 attività · ultimo dato/)).toBeVisible();
 
   await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
@@ -124,7 +130,7 @@ test("il cliente associa una forza Health a una scheda del piano attivo", async 
   await mockPlatformApi(page, "athlete");
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Analisi" }).click();
+  await openAthleteSection(page, "Analisi");
   await page.getByLabel("Associa alla scheda prevista").selectOption("lower-a");
 
   await expect(page.getByRole("status").filter({ hasText: "Attività associata alla scheda e sincronizzata." })).toBeVisible();
@@ -158,6 +164,14 @@ test("il calendario non attribuisce una forza Health alla scheda sbagliata", asy
 
   await page.goto("/");
   await page.getByRole("button", { name: "Calendario", exact: true }).click();
+  await page.getByRole("tab", { name: "Mese" }).click();
+  const targetMonth = new Date("2026-07-01T12:00:00");
+  const currentMonth = new Date();
+  const monthOffset = (currentMonth.getFullYear() - targetMonth.getFullYear()) * 12 + currentMonth.getMonth() - targetMonth.getMonth();
+  const monthControl = monthOffset >= 0
+    ? page.getByRole("button", { name: "Periodo precedente" })
+    : page.getByRole("button", { name: "Periodo successivo" });
+  for (let index = 0; index < Math.abs(monthOffset); index += 1) await monthControl.click();
   const lowerDay = page.getByRole("gridcell", { name: /lunedì 13 luglio, Lower forza/i });
   await expect(lowerDay).not.toHaveClass(/is-done/);
   await lowerDay.click();
@@ -181,7 +195,7 @@ test("il cliente può disattivare le push del dispositivo senza perdere l'inbox"
   });
 
   await page.goto("/");
-  await page.getByRole("button", { name: /Avvisi/ }).click();
+  await openAthleteSection(page, "Avvisi");
   await expect(page.getByRole("button", { name: "Disattiva notifiche" })).toBeVisible();
   await page.getByRole("button", { name: "Disattiva notifiche" }).click();
 
@@ -313,6 +327,7 @@ test("tab e griglia calendario supportano frecce e focus roving", async ({ page 
 
   const monthTab = page.getByRole("tab", { name: "Mese" });
   const weekTab = page.getByRole("tab", { name: "Settimana" });
+  await monthTab.click();
   await expect(monthTab).toHaveAttribute("aria-selected", "true");
   await monthTab.focus();
   await page.keyboard.press("ArrowRight");
@@ -381,7 +396,7 @@ test("la shell resta utilizzabile con testo al 200% su mobile", async ({ page },
   await assertNoClipping();
   await page.getByRole("button", { name: "Progressi" }).click();
   await assertNoClipping();
-  await page.getByRole("button", { name: /Avvisi/ }).click();
+  await openAthleteSection(page, "Avvisi");
   await assertNoClipping();
 });
 
