@@ -28,6 +28,7 @@ import type {
   TemplateCustomization,
   TrainingBlock,
   TrainingPlan,
+  UserRole,
   UserProfile,
   WorkoutSession,
   WorkoutTemplate,
@@ -220,14 +221,18 @@ export async function clearAccountScopedCache() {
  * Impedisce che un secondo account erediti o sincronizzi la cache del primo.
  * Il primo login conserva invece i dati legacy, che verranno migrati subito dopo.
  */
-export async function prepareAccountCache(userId: string) {
+export async function prepareAccountCache(userId: string, role: UserRole = "athlete") {
   const settings = await db.appSettings.get("app-settings");
   if (!settings?.dataOwnerUserId) {
+    // Soltanto il primo atleta può rivendicare i dati legacy per migrarli.
+    // Un account staff non deve mai ereditare log o code offline lasciati
+    // sul browser da una precedente esperienza senza account.
+    if (role !== "athlete") await clearAccountScopedCache();
     await db.appSettings.put({
       ...(settings ?? defaultSettings),
       dataOwnerUserId: userId,
     });
-    return "legacy" as const;
+    return role === "athlete" ? "legacy" as const : "staff-account" as const;
   }
   if (settings.dataOwnerUserId === userId) return "same-account" as const;
 

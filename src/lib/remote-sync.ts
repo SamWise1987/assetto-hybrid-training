@@ -150,7 +150,7 @@ export async function syncAccountProfile() {
     profile: { userId: string; email: string; displayName: string; role: "admin" | "coach" | "athlete"; updatedAt?: string };
   };
   const { db, prepareAccountCache } = await import("./db");
-  await prepareAccountCache(body.profile.userId);
+  await prepareAccountCache(body.profile.userId, body.profile.role);
   await db.accountProfiles.put({
     id: "account-profile",
     userId: body.profile.userId,

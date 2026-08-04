@@ -63,6 +63,18 @@ describe("offline normalized cache", () => {
     expect(await db.runningWorkoutTemplates.count()).toBeGreaterThan(0);
   });
 
+  it("non assegna mai dati legacy e coda offline al primo account staff", async () => {
+    const { db, enqueueSync, prepareAccountCache, seedInitialData } = database;
+    await seedInitialData({ name: "Profilo locale precedente" });
+    await enqueueSync({ entity: "run", entityId: "legacy-run", operation: "upsert", payload: { id: "legacy-run" } });
+
+    await expect(prepareAccountCache("admin-1", "admin")).resolves.toBe("staff-account");
+
+    expect(await db.profiles.count()).toBe(0);
+    expect(await db.syncQueue.count()).toBe(0);
+    expect((await db.appSettings.get("app-settings"))?.dataOwnerUserId).toBe("admin-1");
+  });
+
   it("mantiene solo l'ultima modifica profilo nella coda offline", async () => {
     const { db, enqueueSync } = database;
     await enqueueSync({ entity: "profile", entityId: "user-1", operation: "upsert", payload: { displayName: "Primo" } });

@@ -301,6 +301,9 @@ h1, h2, h3, p { margin-top: 0; }
 .exercise-card-placeholder { color: var(--muted); }
 .exercise-card-placeholder svg { width: 42px; height: 42px; }
 .exercise-card-body { display: grid; gap: 8px; }
+.exercise-card.is-text-only { align-content: start; }
+.exercise-instructions { display: grid; gap: 5px; padding-top: 8px; border-top: 1px solid var(--border-soft); }
+.exercise-instructions > strong { color: var(--text); font-size: .82rem; }
 .exercise-equipment { color: var(--turquoise); font-size: .82rem; }
 .exercise-description { color: var(--muted); font-size: .88rem; line-height: 1.45; }
 .filter-chips { display: flex; flex-wrap: wrap; gap: 8px; }

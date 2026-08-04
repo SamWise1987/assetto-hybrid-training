@@ -59,7 +59,19 @@ export async function mockPlatformApi(page: Page, role: "athlete" | "coach" | "a
   await page.route("**/api/staff/clients", (route) => route.fulfill({ json: { clients: [{ id: relationshipId, trainer_user_id: coachId, athlete_user_id: athleteId, athlete_email: "alex@example.com", status: "active", invited_at: "2026-07-01T08:00:00.000Z", account: { user_id: athleteId, display_name: "Alex", email: "alex@example.com" }, profile: { primary_goal: "Allenamento ibrido", onboarding_completed_at: "2026-07-14T08:00:00.000Z" }, health: { status: "success", platform: "ios", last_successful_sync_at: "2026-07-14T07:00:00.000Z" } }] } }));
   await page.route(`**/api/staff/clients/${athleteId}`, (route) => route.fulfill({ json: { profile: { primary_goal: "Allenamento ibrido", training_days: [1, 2, 4, 6], equipment: ["Manubri", "Panca"], limitations: [] }, health: [{ platform: "ios", status: "success", last_successful_sync_at: "2026-07-14T07:00:00.000Z" }], plan: assignedPlan, metrics: { workouts: 7, runs: 5, followUps: 3, adherence: 88 }, calendar: [{ id: "activity-1", date: "2026-07-13", kind: "strength", status: "complete", source: "app", label: "Upper ipertrofia" }], external: [] } }));
   await page.route("**/api/analysis/suggestions**", (route) => route.fulfill({ json: { suggestions: [] } }));
-  await page.route("**/api/plans", (route) => route.fulfill({ json: { plan: assignedPlan } }));
+  await page.route("**/api/plans", async (route) => {
+    const method = route.request().method();
+    if (method === "GET") return route.fulfill({ json: { plans: role === "athlete" ? [] : [assignedPlan] } });
+    const payload = route.request().postDataJSON() as { name?: string; description?: string; sessions?: typeof assignedPlan.sessions } | null;
+    return route.fulfill({ json: { plan: {
+      ...assignedPlan,
+      id: method === "POST" ? "99999999-9999-4999-8999-999999999999" : assignedPlan.id,
+      name: payload?.name ?? assignedPlan.name,
+      description: payload?.description ?? assignedPlan.description,
+      sessions: payload?.sessions ?? assignedPlan.sessions,
+      updatedAt: "2026-07-15T12:00:00.000Z",
+    } } });
+  });
   await page.route("**/api/admin/users", (route) => route.fulfill({ json: { users: [] } }));
   await page.route("**/api/admin/audit", (route) => route.fulfill({ json: { events: [] } }));
   await page.route("**/api/admin/errors", (route) => route.fulfill({ json: { events: [] } }));

@@ -2,7 +2,7 @@
 
 import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useState } from "react";
-import { ClipboardList, Save, Send, UserRoundCog } from "lucide-react";
+import { ClipboardList, Plus, Save, Send, UserRoundCog } from "lucide-react";
 import { assignPlanLocally, applyCoachRunPlans, db, getResolvedTemplates, saveTrainingPlan } from "@/lib/db";
 import { defaultTrainingPlan } from "@/lib/plans";
 import { canManagePlans } from "@/lib/roles";
@@ -67,6 +67,7 @@ export function CoachScreen() {
   const [runSearch, setRunSearch] = useState("");
   const [runLevel, setRunLevel] = useState<"all" | "beginner" | "intermediate" | "advanced">("all");
   const [runCategory, setRunCategory] = useState<"all" | import("@/lib/types").RunningWorkoutTemplate["category"]>("all");
+  const [plansLoading, setPlansLoading] = useState(false);
 
   const resolvedTemplates = useLiveQuery(() => getResolvedTemplates(), [], []);
 
@@ -75,6 +76,36 @@ export function CoachScreen() {
   }, []);
 
   useEffect(() => {
+    if (!canManagePlans(account?.role)) return;
+    const controller = new AbortController();
+
+    const loadCloudPlans = async () => {
+      const token = await getRemoteAccessToken();
+      if (!token || controller.signal.aborted) return;
+      setPlansLoading(true);
+      try {
+        const response = await fetch("/api/plans", {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
+        });
+        if (!response.ok) return;
+        const body = (await response.json()) as { plans?: TrainingPlan[] };
+        if (body.plans?.length) await db.trainingPlans.bulkPut(body.plans);
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setStatus("I piani cloud non sono disponibili: puoi continuare con la cache locale.");
+        }
+      } finally {
+        if (!controller.signal.aborted) setPlansLoading(false);
+      }
+    };
+
+    loadCloudPlans().catch(() => undefined);
+    return () => controller.abort();
+  }, [account?.role]);
+
+  useEffect(() => {
+    if (selectedPlanId.startsWith("draft-")) return;
     const plan = localPlans.find((entry) => entry.id === selectedPlanId) ?? localPlans[0];
     if (!plan) {
       const fallback = defaultTrainingPlan(account?.userId ?? "local");
@@ -108,6 +139,15 @@ export function CoachScreen() {
     const haystack = `${template.name} ${template.objective} ${template.category}`.toLowerCase();
     return matchesLevel && matchesCategory && haystack.includes(runSearch.trim().toLowerCase());
   });
+
+  const createPlan = () => {
+    const draft = defaultTrainingPlan(account?.userId ?? "local-staff");
+    setSelectedPlanId(`draft-${crypto.randomUUID()}`);
+    setPlanName("Nuovo piano");
+    setSessions(enrichSessions(draft.sessions));
+    setExpandedSession(null);
+    setStatus("Nuova bozza creata. Personalizzala e salvala prima di assegnarla.");
+  };
 
   const updateSessionName = (templateId: string, displayName: string) => {
     setSessions(sessions.map((session) => (session.templateId === templateId ? { ...session, displayName } : session)));
@@ -211,6 +251,10 @@ export function CoachScreen() {
   };
 
   const assignPlan = async () => {
+    if (!/^[0-9a-f-]{36}$/i.test(selectedPlanId)) {
+      setStatus("Salva prima il nuovo piano, poi potrai assegnarlo al cliente.");
+      return;
+    }
     if (!assignEmail.includes("@")) {
       setStatus("Inserisci l'email dell'atleta.");
       return;
@@ -265,9 +309,25 @@ export function CoachScreen() {
 
       <Surface>
         <div className="surface-heading">
-          <div><p className="date-label">Passo 1–2</p><h2>Nome e sessioni</h2></div>
+          <div><p className="date-label">{selectedPlanId.startsWith("draft-") ? "Bozza non salvata" : "Passo 1–2"}</p><h2>Nome e sessioni</h2></div>
           <ClipboardList />
         </div>
+        <div className="dashboard-form plan-toolbar">
+          <label className="field">
+            <span>Piano da modificare</span>
+            <select
+              value={selectedPlanId.startsWith("draft-") ? "" : selectedPlanId}
+              onChange={(event) => setSelectedPlanId(event.target.value)}
+              disabled={plansLoading || localPlans.length === 0}
+            >
+              {selectedPlanId.startsWith("draft-") ? <option value="">Nuova bozza</option> : null}
+              {localPlans.length === 0 ? <option value="">Nessun piano salvato</option> : null}
+              {localPlans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name}</option>)}
+            </select>
+          </label>
+          <Button variant="ghost" onClick={createPlan}><Plus /> Crea nuovo piano</Button>
+        </div>
+        {plansLoading ? <p className="quiet-note" role="status">Aggiornamento dei piani dal cloud…</p> : null}
         <Field label="Nome piano" value={planName} onChange={(e) => setPlanName(e.target.value)} />
         <div className="week-list">
           {sessions.map((session) => (
@@ -457,7 +517,7 @@ export function CoachScreen() {
           <UserRoundCog />
         </div>
         <Field label="Email cliente" type="email" value={assignEmail} onChange={(e) => setAssignEmail(e.target.value)} />
-        <Button onClick={assignPlan}><Send /> Assegna piano</Button>
+        <Button onClick={assignPlan} disabled={!/^[0-9a-f-]{36}$/i.test(selectedPlanId)}><Send /> Assegna piano</Button>
       </Surface>
 
       {resolvedTemplates?.length ? (
